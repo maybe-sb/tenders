@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -87,7 +87,7 @@ export function ProjectsScreen() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create project</DialogTitle>
-          </DialogHeader>
+            <DialogDescription>Capture the basics for your tendering project.</DialogDescription>\r\n          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="project-name">Project name</Label>
@@ -145,3 +145,4 @@ function ProjectSkeletonGrid() {
     </div>
   );
 }
+
