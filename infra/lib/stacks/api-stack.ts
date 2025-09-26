@@ -1,6 +1,6 @@
 import { Duration, Stack, StackProps, CfnOutput } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
+import { Cors, LambdaRestApi } from "aws-cdk-lib/aws-apigateway";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime, Tracing } from "aws-cdk-lib/aws-lambda";
 import { Bucket } from "aws-cdk-lib/aws-s3";
@@ -19,7 +19,7 @@ export interface ApiStackProps extends StackProps {
 }
 
 export class ApiStack extends Stack {
-  public readonly api: RestApi;
+  public readonly api: LambdaRestApi;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -48,18 +48,20 @@ export class ApiStack extends Stack {
     props.reportQueue.grantSendMessages(apiHandler);
     props.textractQueue.grantSendMessages(apiHandler);
 
-    this.api = new RestApi(this, "TendersApi", {
+    this.api = new LambdaRestApi(this, "TendersApi", {
       restApiName: `tenders-${props.envName}`,
+      handler: apiHandler,
+      proxy: true,
+      defaultCorsPreflightOptions: {
+        allowOrigins: Cors.ALL_ORIGINS,
+        allowMethods: Cors.ALL_METHODS,
+        allowHeaders: Cors.DEFAULT_HEADERS,
+      },
       deployOptions: {
         stageName: props.envName,
         metricsEnabled: true,
         tracingEnabled: true,
       },
-    });
-
-    this.api.root.addResource("api").addResource("v1").addProxy({
-      defaultIntegration: new LambdaIntegration(apiHandler),
-      anyMethod: true,
     });
 
     new CfnOutput(this, "ApiUrl", { value: this.api.url ?? "" });

@@ -1,4 +1,8 @@
-import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
+import type {
+  APIGatewayProxyEvent,
+  APIGatewayProxyEventV2,
+  APIGatewayProxyStructuredResultV2,
+} from "aws-lambda";
 import middy from "@middy/core";
 import httpJsonBodyParser from "@middy/http-json-body-parser";
 import httpErrorHandler from "@middy/http-error-handler";
@@ -90,9 +94,43 @@ const routes: RouteConfig[] = [
   },
 ];
 
-async function main(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
-  const method = event.requestContext.http.method.toUpperCase();
-  const path = event.rawPath.replace(/^\/api\/v1/, "");
+function normalisePath(event: APIGatewayProxyEvent | APIGatewayProxyEventV2): string {
+  const stage = (event as any).requestContext?.stage as string | undefined;
+  const rawPath = (event as any).rawPath ?? (event as APIGatewayProxyEvent).path ?? "/";
+  let path = rawPath;
+
+  if (stage && path.startsWith(`/${stage}`)) {
+    path = path.slice(stage.length + 1) || "/";
+  }
+
+  path = path.replace(/^\/api\/v1/, "");
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+function resolveMethod(event: APIGatewayProxyEvent | APIGatewayProxyEventV2): string {
+  const method = (event as APIGatewayProxyEventV2).requestContext?.http?.method ?? (event as APIGatewayProxyEvent).httpMethod;
+  return (method ?? "").toUpperCase();
+}
+
+async function main(event: APIGatewayProxyEvent | APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
+  const method = resolveMethod(event);
+  const path = normalisePath(event);
+
+  if (!method) {
+    return errorResponse(400, "Unsupported request");
+  }
+
+  if (method === "OPTIONS") {
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Methods": "GET,PUT,POST,DELETE,PATCH,OPTIONS",
+      },
+      body: "",
+    };
+  }
 
   for (const route of routes) {
     if (route.method !== method) continue;
@@ -100,11 +138,12 @@ async function main(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStruc
     if (match) {
       const params = match.groups ?? {};
       logger.info("Handling route", { method, path, params });
-      return route.handler(event, params);
+      return route.handler(event as APIGatewayProxyEventV2, params);
     }
   }
 
+  logger.warn("Route not found", { method, path });
   return errorResponse(404, "Route not found");
 }
 
-export const handler = middy(main).use(httpJsonBodyParser()).use(httpErrorHandler());
+export const handler = middy(main).use(httpErrorHandler());
