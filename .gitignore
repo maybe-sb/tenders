@@ -1,0 +1,18 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Build artifacts
+frontend/.next/
+frontend/out/
+services/dist/
+infra/cdk.out/
+
+# Env files
+frontend/.env.local
+frontend/.env*
+infra/.env
+
+# Mac/Win
+.DS_Store
+Thumbs.db

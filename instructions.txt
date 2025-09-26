@@ -1,0 +1,538 @@
+# Tenders — Project Brief for Claude Code
+
+> **One‑liner**: A React (shadcn/ui) web app hosted on AWS Amplify that lets a user create tendering projects, upload an ITT BOQ (Excel) and multiple contractor tender responses (Excel/PDF), auto‑extract & match line items, resolve unmatched items via a drag‑and‑drop UI, and export a sectioned comparison PDF.
+
+---
+
+## Goals & Non‑Goals
+
+### In Scope
+
+* Project creation & management (CRUD for “Tendering Projects”).
+* Uploads:
+
+  * **ITT BOQ**: Excel only.
+  * **Tender Responses**: Excel or PDF.
+* Extraction pipeline:
+
+  * Parse Excel via Lambda (openpyxl or pandas) → structured line items.
+  * Parse PDF via AWS Textract → table extraction → structured line items.
+* Matching engine:
+
+  * Exact match attempts (by code/description/unit; configurable normalization).
+  * User review of suggested matches: Accept / Reject / Accept + comment.
+  * Manual mapping UI (drag response items to ITT items).
+  * Unmatchable items → “Exceptions”; can attach to a Section.
+* Tender Assessment view:
+
+  * Per‑Section summary comparison (all contractors on one page).
+  * Line‑item detail pages with exceptions noted.
+* Export: Generate a printable **PDF report** (per Section summary + detail).
+
+### Out of Scope (v1)
+
+* Multi‑tenant organizations/roles beyond single account owner.
+* Complex currency handling (assume single currency per project).
+* Advanced OCR field heuristics beyond Textract tables for PDFs.
+* Offline desktop application.
+
+---
+
+## Tech Stack & Hosting
+
+* **Frontend**: React + TypeScript + Vite/Next.js (Next.js preferred) with **shadcn/ui**.
+* **State**: React Query (data fetching cache), Zustand or Redux (light app state), React DnD or dnd‑kit for drag‑and‑drop.
+* **Design**: TailwindCSS + shadcn/ui tokens.
+* **Hosting**: **AWS Amplify** (hosting only) wired to GitHub repo `maybe-sb/tenders` for CI/CD on main branch.
+* **API**: Amazon API Gateway (REST) → AWS Lambda (Node.js 20.x or Python 3.12).
+* **Storage**:
+
+  * **S3** buckets: uploads (raw) and artifacts (JSON, PDFs).
+  * **DynamoDB**: primary datastore for projects, documents, items, matches.
+* **Document AI**: AWS Textract for PDF tables (AnalyzeDocument/Tables).
+* **Reporting**: Lambda using headless Chromium (e.g., `@sparticuz/chromium` + Puppeteer) to render HTML → PDF.
+* **IaC**: AWS CDK (TypeScript) or AWS SAM. (Pick one; examples below use CDK.)
+
+---
+
+## Domain Model (DynamoDB)
+
+**Single‑table design** (recommended) with composite keys to keep joins serverless‑friendly.
+
+**Table**: `Tenders`
+
+* **PK**: `PK` (e.g., `PROJECT#<projectId>`)
+* **SK**: `SK` (entity sort; e.g., `META`, `SECTION#<sectionId>`, `ITTITEM#<ittItemId>`, `RESP#<contractorId>`, `RESPITEM#<responseItemId>`, `MATCH#<ittItemId>#<contractorId>`)
+* **GSIs**:
+
+  * `GSI1` for lookups by document or contractor: `GSI1PK` / `GSI1SK`.
+  * `GSI2` for unmatched/exceptions: `GSI2PK` / `GSI2SK`.
+
+**Entity Types**
+
+* **Project** (`PK=PROJECT#id`, `SK=META`)
+
+  * fields: `projectId`, `name`, `status` (draft|in_review|finalized), `currency`, `createdAt`, `updatedAt`, `ownerSub`.
+* **Section** (`SK=SECTION#sectionId`)
+
+  * fields: `sectionId`, `code`, `name`, `order`.
+* **ITTItem** (`SK=ITTITEM#ittItemId`)
+
+  * fields: `ittItemId`, `sectionId`, `itemCode`, `description`, `unit`, `qty`, `rate`, `amount`, `meta`.
+* **Document** (`SK=DOC#<docId>`) for ITT or Response
+
+  * fields: `docId`, `type` (itt|response), `contractorId?`, `source` (excel|pdf), `s3KeyRaw`, `s3KeyExtracted`, `parseStatus`.
+* **Contractor** (`SK=CONTRACTOR#<contractorId>`) — created on first response upload for a contractor.
+
+  * fields: `contractorId`, `name`, `contact?`.
+* **ResponseItem** (`SK=RESPITEM#responseItemId`, `GSI1PK=CONTRACTOR#contractorId`)
+
+  * fields: `responseItemId`, `contractorId`, `sectionGuess?`, `itemCode?`, `description`, `unit?`, `qty?`, `rate?`, `amount?`.
+* **Match** (`SK=MATCH#<ittItemId>#<contractorId>`, `GSI2PK=MATCH#UNREVIEWED|REVIEWED|REJECTED`)
+
+  * fields: `status` (suggested|accepted|rejected|manual), `confidence`, `comment?`, `responseItemId`, `ittItemId`.
+* **Exception** (`SK=EXCEPTION#<responseItemId>`, `GSI2PK=EXCEPTION#<projectId>`) — for items not tied to a specific ITT line; may link to a Section.
+
+> *Alternative*: Separate tables (`Projects`, `Items`, `Responses`, `Matches`). Single‑table is chosen for cost and query simplicity.
+
+---
+
+## S3 Layout
+
+* Bucket: `tenders-uploads-<env>`
+
+  * `projects/<projectId>/itt/<timestamp>/raw.xlsx`
+  * `projects/<projectId>/responses/<contractorId>/<timestamp>/raw.(xlsx|pdf)`
+* Bucket: `tenders-artifacts-<env>`
+
+  * `projects/<projectId>/itt/<timestamp>/extracted.json`
+  * `projects/<projectId>/responses/<contractorId>/<timestamp>/extracted.json`
+  * `projects/<projectId>/reports/<timestamp>/report.pdf`
+
+---
+
+## API Design (REST)
+
+Base: `/api/v1`
+
+* `POST /projects` → create project
+* `GET /projects` → list current user’s projects
+* `GET /projects/:projectId` → get project (incl. basic stats)
+* `PATCH /projects/:projectId` → update
+* `DELETE /projects/:projectId` → archive/delete (soft)
+
+Uploads & Extraction
+
+* `POST /projects/:projectId/itt/upload` (multipart) → presigned URL or direct upload; triggers parse Lambda
+* `POST /projects/:projectId/responses/upload` (multipart; `contractorName` string) → presigned upload; triggers parse
+* `GET /projects/:projectId/documents` → list docs & parse statuses
+
+Matching & Review
+
+* `POST /projects/:projectId/match/auto` → run auto‑match (idempotent)
+* `GET /projects/:projectId/match/suggestions` → list suggestions (paginated)
+* `POST /projects/:projectId/match/:matchId/accept` {comment?}
+* `POST /projects/:projectId/match/:matchId/reject` {comment?}
+* `POST /projects/:projectId/manual-match` {ittItemId, responseItemId, contractorId, comment?}
+* `POST /projects/:projectId/exception` {responseItemId, sectionId, note?}
+
+Assessment & Reporting
+
+* `GET /projects/:projectId/assessment?view=section|detail` → aggregated view data
+* `POST /projects/:projectId/report` → generate PDF → returns `s3Key`
+* `GET /projects/:projectId/report/:reportId` → signed URL
+
+
+
+---
+
+## Extraction Pipeline (Lambdas)
+
+**Excel (ITT & Responses)**
+
+1. Trigger: S3 `ObjectCreated` (uploads bucket).
+2. Lambda steps:
+
+   * Download Excel from S3.
+   * Detect sheet containing BOQ (heuristics or configurable `sheetName`, `headerRow`).
+   * Map columns via header matching (configurable synonyms: `Item`, `Item No`, `Code`; `Description`; `Unit`; `Qty`; `Rate`; `Amount`).
+   * Normalize data (trim, uppercase codes, collapse whitespace, strip parentheticals if configured).
+   * Emit structured JSON → `tenders-artifacts` bucket; write `Document` + item entities to DynamoDB.
+
+**PDF (Responses)**
+
+1. Trigger: S3 `ObjectCreated` for PDF.
+2. Lambda steps:
+
+   * Call Textract (`AnalyzeDocument` with `TABLES`).
+   * Reconstruct tables → rows.
+   * Apply same column mapping/normalization.
+   * Emit structured JSON and write items to DynamoDB.
+
+**Resilience**
+
+* Save `parseStatus`: `pending|parsed|failed` with error message.
+* Store raw Textract JSON (optional) for audit under artifacts.
+
+---
+
+## Matching Engine (Lambda)
+
+### Stage 1 — Exact/Semantic Lightweight
+
+* **Normalization**: lowercase, trim, collapse spaces, remove punctuation, strip stopwords like common units `(mm, m, ea)`, expand common abbreviations (cfg), optional stemming.
+* **Keys**:
+
+  * If both have `itemCode` → strict code match.
+  * Else **description key**: token‑sort exact after normalization.
+  * Unit match is a soft constraint (boost confidence if unit equal).
+* Confidence scoring: 1.0 for code+desc exact; 0.8 for desc exact; 0.6 for high token overlap with same section.
+
+### Stage 2 — Fuzzy (configurable threshold)
+
+* Compute token Jaccard similarity or cosine on TF‑IDF vectors.
+* Optional Levenshtein on short strings (`itemCode` / short desc).
+* Thresholds: suggest if ≥ 0.75; mark low‑confidence if 0.6–0.75.
+
+### Output
+
+* Create **Match** items with `status=suggested`, `confidence`, `ittItemId`, `responseItemId`, `contractorId`.
+* Unmatched response items become **Exceptions** (can attach to a Section only).
+
+### Manual Mapping
+
+* API accepts a manual match; status becomes `manual`.
+* If a suggestion is accepted → `accepted`; rejected suggestions are retained to prevent re‑suggestion.
+
+---
+
+## Frontend UX (shadcn/ui)
+
+### Pages
+
+1. **Projects** (list)
+
+   * Card list of projects with status chips; Create Project dialog.
+2. **Project Detail**
+
+   * 4‑step tabs or wizard:
+
+     1. Upload ITT BOQ (Excel) → show parse status, preview.
+     2. Upload Tender Responses (Excel/PDF) → statuses, previews per contractor.
+     3. Auto‑Match & Review → table of suggestions with Accept/Reject/Comment.
+     4. Manual Map → side‑by‑side lists: **ITT items** (left) and **Response items** grouped by contractor (right) with drag‑and‑drop.
+   * Exceptions panel: list by contractor; assign to Section via dropdown.
+3. **Assessment**
+
+   * **Section Summary**: a grid where columns = contractors, rows = sections, cells show totals and variance vs. lowest bid.
+   * **Detail by Section**: accordion per section; table of ITT lines with contractor values; chips for exceptions.
+   * Actions: Generate PDF.
+
+### Components (shadcn/ui)
+
+* `Button`, `Card`, `Tabs`, `Table`, `Badge`, `Dialog`, `Toast`, `Dropdown`, `Select`, `Accordion`, `Input`, `Textarea`, `ScrollArea`.
+* Drag‑and‑drop: `dnd-kit` with keyboard accessibility.
+* File uploads: presigned URL flow; progress bar; parse status toasts.
+
+### Accessibility
+
+* Focus management on modals.
+* Keyboard navigable drag targets.
+* Semantic tables with row headers.
+
+---
+
+## PDF Report (Lambda + Headless Chromium)
+
+* Input: Aggregated assessment JSON (per Section totals, detail rows, exceptions).
+* Render server‑side HTML (Tailwind via prebuilt stylesheet) → PDF.
+* Cover: Project info & contractors.
+* Page 1 per Section: totals comparison (bar chart optional via SVG only) + key notes.
+* Subsequent pages: line‑item tables per Section; exceptions at end.
+* Output: `projects/<projectId>/reports/<ts>/report.pdf` in artifacts S3; return signed URL.
+
+---
+
+## Repository Layout
+
+```
+/tenders
+  /frontend
+    /src
+      /app (Next.js) or /routes (if Vite+Router)
+      /components
+      /lib (api client, auth, utils)
+      /styles
+    package.json
+    tailwind.config.js
+    postcss.config.js
+    tsconfig.json
+  /infra (CDK)
+    /lib
+      api.ts
+      auth.ts
+      storage.ts
+      ddb.ts
+      reporting.ts
+      textract.ts
+      stack.ts
+    bin/cdk.ts
+    package.json
+    cdk.json
+  /lambdas
+    extract-excel/
+    extract-pdf/
+    match-engine/
+    api-handlers/
+    generate-report/
+    shared/
+  amplify.yml (hosting)
+  README.md
+  CLAUDE.MD (this file)
+```
+
+---
+
+## Amplify Hosting Config (amplify.yml)
+
+```yaml
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd frontend && npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: frontend/.next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*
+```
+
+> If using Vite, set `baseDirectory: frontend/dist`.
+
+---
+
+## Environment Variables
+
+* `REGION` (e.g., ap-southeast-2)
+* `UPLOADS_BUCKET`
+* `ARTIFACTS_BUCKET`
+* `DDB_TABLE`
+* `TEXTRACT_FEATURES=TABLES`
+* `CHROMIUM_ENABLE_OVERSCAN=1` (if needed by Puppeteer layer)
+
+Frontend `.env.local`:
+
+```
+NEXT_PUBLIC_REGION=ap-southeast-2
+NEXT_PUBLIC_API_BASE=https://<api-id>.execute-api.ap-southeast-2.amazonaws.com/prod/api/v1
+NEXT_PUBLIC_IDENTITY_POOL_ID=<optional if using Federated Identities>
+NEXT_PUBLIC_USER_POOL_ID=...
+NEXT_PUBLIC_USER_POOL_CLIENT_ID=...
+```
+
+---
+
+## CDK Stack Sketch (TypeScript)
+
+
+* S3 buckets with CORS for presigned uploads and GET (signed URLs only).
+* DynamoDB table with on‑demand capacity and GSIs.
+* API Gateway 
+* Lambdas:
+
+  * `extract-excel` (S3 trigger)
+  * `extract-pdf` (S3 trigger, Textract caller)
+  * `match-engine` (on demand via API)
+  * `api-handlers` (REST routes; may be multiple functions or a monolith with a router)
+  * `generate-report` (on demand)
+
+> Add appropriate IAM policies: S3 R/W, Textract invoke, DynamoDB CRUD scoped by table, CloudWatch Logs.
+
+---
+
+## API Contract — Key Payloads
+
+### Line Item (Canonical)
+
+```json
+{
+  "sectionId": "SEC-01",
+  "itemCode": "A1.01",
+  "description": "Excavate trench 300mm wide to depth 600mm",
+  "unit": "m",
+  "qty": 120,
+  "rate": 15.5,
+  "amount": 1860
+}
+```
+
+### Match Suggestion
+
+```json
+{
+  "matchId": "MATCH#A1.01#CONTRACTOR#acme",
+  "ittItemId": "ITTITEM#...",
+  "responseItemId": "RESPITEM#...",
+  "contractorId": "acme",
+  "status": "suggested",
+  "confidence": 0.86,
+  "comment": null
+}
+```
+
+### Manual Match Request
+
+```json
+{
+  "ittItemId": "ITTITEM#...",
+  "responseItemId": "RESPITEM#...",
+  "contractorId": "acme",
+  "comment": "Spec wording differs but scope identical"
+}
+```
+
+---
+
+## Matching Normalization Rules (Initial)
+
+* Lowercase, trim, collapse whitespace.
+* Strip punctuation except `.` in codes.
+* Replace common abbreviations: `excav.`→`excavate`, `conc`→`concrete`, `galv`→`galvanised`.
+* Remove unit tokens from description when duplicated by `unit` field.
+* Numeric quantities in description (e.g., `300mm`) → standardize (`0.3 m`) for comparison keys.
+* Token sort for description; compare sets (Jaccard) for fuzzy.
+
+*All rules configurable via JSON in `artifacts` bucket per project.*
+
+---
+
+## Frontend Data Fetching Pattern
+
+* Use React Query with a typed `api` client 
+* Optimistic updates for match Accept/Reject.
+* Websocket isn’t required; poll parse statuses every 3–5s until `parsed`.
+
+---
+
+## Developer Tasks for Claude Code
+
+> Use these step prompts with Claude Code to scaffold and iterate.
+
+1. **Scaffold frontend app**
+
+   * Create Next.js + TS + Tailwind + shadcn/ui project in `/frontend`.
+   * Add base pages: `/projects`, `/projects/[projectId]`, `/projects/[projectId]/assessment`.
+   *.
+
+2. **Create shared UI components**
+
+   * ProjectCard, UploadCard, StatusBadge, ItemTable, MatchReviewTable, DnDPanel, ExceptionsList.
+
+3. **Build API client**
+
+   * `lib/api.ts` with methods for endpoints defined above; include retry and error typing.
+
+4. **Set up CDK infra**
+
+   * Stacks: `AuthStack`, `StorageStack`, `DataStack`, `ApiStack`, `AiStack` (Textract/reporting).
+   * Outputs → `frontend/.env.local`.
+
+5. **Implement Lambdas**
+
+   * `extract-excel`: parse with `xlsx` or `exceljs` (Node) or `openpyxl` (Python). Prefer Node for mono‑runtime.
+   * `extract-pdf`: call Textract and map tables.
+   * `match-engine`: implement normalization + fuzzy scoring.
+   * `api-handlers`: presigned uploads, CRUD, aggregation for assessment.
+   * `generate-report`: HTML template → Puppeteer → PDF → S3.
+
+6. **Wire S3 triggers & API routes**
+
+   * S3 `ObjectCreated` → respective extractors based on extension.
+   * API routes to orchestrate auto‑match and manual actions.
+
+7. **Frontend flows**
+
+   * Upload ITT, then responses; preview parsed tables.
+   * Auto‑match & review; accept/reject.
+   * Manual mapping via drag‑and‑drop.
+   * Assessment visualization + Generate PDF.
+
+8. **Testing**
+
+   * Seed project with sample ITT (Excel) and two PDF/Excel responses.
+   * Unit tests for normalization rules & matcher thresholds.
+
+9. **CI/CD**
+
+   * Connect GitHub repo to Amplify Hosting for `/frontend` build.
+   * CDK GitHub Action (optional) for infra deploy on tag.
+
+---
+
+## Sample Excel Header Synonyms (configurable)
+
+```json
+{
+  "code": ["Item", "Item No", "Item Code", "Ref"],
+  "description": ["Description", "Item Description", "Scope"],
+  "unit": ["Unit", "UOM"],
+  "qty": ["Qty", "Quantity"],
+  "rate": ["Rate", "Unit Rate"],
+  "amount": ["Amount", "Total", "Line Total"]
+}
+```
+
+---
+
+## Security & Permissions
+
+
+* S3 buckets private; presigned PUT for uploads; presigned GET for downloads.
+* DynamoDB IAM scoped to table ARN; no wildcards beyond required actions.
+* Server‑side validation of project ownership on every route.
+
+
+---
+
+## Acceptance Criteria (v1)
+
+* A user can: create a project → upload one ITT Excel → upload ≥1 contractor responses (Excel/PDF).
+* System extracts items into canonical structure with ≥95% success on well‑formed Excel; reasonable tables from PDFs via Textract.
+* Auto‑match proposes plausible pairs; user can accept/reject; manual mapping works via drag‑and‑drop.
+* Exceptions can be attached to a Section.
+* Assessment page summarizes per Section totals across contractors and displays detail per Section.
+* “Generate PDF” produces a downloadable report that mirrors assessment data and highlights exceptions.
+
+---
+
+## Future Enhancements
+
+* ML‑assisted section classification for exceptions.
+* Unit normalization & conversions.
+* Multi‑currency with FX snapshots.
+* Role‑based access (viewer/reviewer/approver).
+* Comment threads and audit trails.
+* CSV export.
+
+---
+
+## Quickstart (Local Dev)
+
+1. `cd infra && npm i && npx cdk bootstrap && npx cdk deploy` (outputs env values)
+2. `cd frontend && npm i && cp .env.local.example .env.local && npm run dev`
+3. Configure Amplify Hosting → build on `main` for `/frontend`.
+
+---
+
+## Glossary
+
+* **ITT**: Invitation To Tender — instructions & requirements sent to contractors.
+* **BOQ**: Bill of Quantities — line‑item list with quantities & units for pricing.
+* **Exception**: Response item not mapped to a specific ITT line; can attach to a Section.

@@ -1,0 +1,58 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { api } from "@/lib/api";
+import { MatchStatus, MatchSuggestion } from "@/types/tenders";
+
+export function useProjectMatches(projectId: string, status: MatchStatus | "all" = "suggested") {
+  return useQuery({
+    queryKey: ["project-matches", projectId, status],
+    queryFn: () => api.listMatches(projectId, { status }),
+    enabled: Boolean(projectId),
+    refetchInterval: status === "suggested" ? 5000 : false,
+  });
+}
+
+export function useMatchActions(projectId: string) {
+  const queryClient = useQueryClient();
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["project-matches", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-itt-items", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-response-items", projectId, "unmatched"] });
+    queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+  };
+
+  const acceptMatch = useMutation({
+    mutationFn: (matchId: string) =>
+      api.updateMatchStatus(projectId, { matchId, status: "accepted" }),
+    onSuccess: invalidate,
+  });
+
+  const rejectMatch = useMutation({
+    mutationFn: (matchId: string) =>
+      api.updateMatchStatus(projectId, { matchId, status: "rejected" }),
+    onSuccess: invalidate,
+  });
+
+  const createManualMatch = useMutation({
+    mutationFn: (payload: { ittItemId: string; responseItemId: string }) =>
+      api.createManualMatch(projectId, payload),
+    onSuccess: invalidate,
+  });
+
+  const triggerAutoMatch = useMutation({
+    mutationFn: () => api.triggerAutoMatch(projectId),
+    onSuccess: invalidate,
+  });
+
+  return {
+    acceptMatch,
+    rejectMatch,
+    createManualMatch,
+    triggerAutoMatch,
+  };
+}
+
+export type ProjectMatchesResult = MatchSuggestion[];

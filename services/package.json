@@ -1,0 +1,47 @@
+{
+  "name": "@tenders/services",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/handlers/**/*.ts --format esm --splitting false --out-dir dist --clean",
+    "build:watch": "npm run build -- --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@aws-lambda-powertools/logger": "^2.0.0",
+    "@aws-sdk/client-dynamodb": "^3.640.0",
+    "@aws-sdk/client-s3": "^3.640.0",
+    "@aws-sdk/client-sqs": "^3.640.0",
+    "@aws-sdk/client-textract": "^3.640.0",
+    "@aws-sdk/lib-dynamodb": "^3.640.0",
+    "@aws-sdk/s3-request-presigner": "^3.640.0",
+    "@aws-sdk/util-dynamodb": "^3.640.0",
+    "@middy/core": "^5.2.0",
+    "@middy/http-error-handler": "^5.2.0",
+    "@middy/http-json-body-parser": "^5.2.0",
+    "@middy/http-response-serializer": "^5.2.0",
+    "exceljs": "^4.4.0",
+    "jsdom": "^24.0.0",
+    "lodash-es": "^4.17.21",
+    "node-html-parser": "^6.1.10",
+    "puppeteer-core": "^22.12.1",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8",
+    "@sparticuz/chromium-min": "^114.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.135",
+    "@types/node": "^20.12.7",
+    "@types/uuid": "^9.0.7",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.4.5",
+    "vitest": "^1.5.0"
+  }
+}
