@@ -40,6 +40,8 @@ const aiStack = new AiStack(app, `Tenders-${envName}-Ai`, {
   table: dataStack.table,
   uploadsBucket: storageStack.uploadsBucket,
   artifactsBucket: storageStack.artifactsBucket,
+  excelQueue: storageStack.excelQueue,
+  pdfQueue: storageStack.pdfQueue,
 });
 
 const apiStack = new ApiStack(app, `Tenders-${envName}-Api`, {

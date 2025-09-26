@@ -13,14 +13,14 @@ export interface AiStackProps extends StackProps {
   table: Table;
   uploadsBucket: Bucket;
   artifactsBucket: Bucket;
+  excelQueue: Queue;
+  pdfQueue: Queue;
 }
 
 export class AiStack extends Stack {
   public readonly textractQueue: Queue;
   public readonly matchQueue: Queue;
   public readonly reportQueue: Queue;
-  public readonly excelExtractor: NodejsFunction;
-  public readonly pdfExtractor: NodejsFunction;
 
   constructor(scope: Construct, id: string, props: AiStackProps) {
     super(scope, id, props);
@@ -40,7 +40,7 @@ export class AiStack extends Stack {
       visibilityTimeout: Duration.minutes(15),
     });
 
-    this.excelExtractor = new NodejsFunction(this, "ExcelExtractor", {
+    const excelExtractor = new NodejsFunction(this, "ExcelExtractor", {
       entry: path.join(__dirname, "..", "..", "..", "services", "src", "handlers", "extract", "excel.ts"),
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
@@ -54,7 +54,9 @@ export class AiStack extends Stack {
       },
     });
 
-    this.pdfExtractor = new NodejsFunction(this, "PdfExtractor", {
+    excelExtractor.addEventSource(new SqsEventSource(props.excelQueue));
+
+    const pdfExtractor = new NodejsFunction(this, "PdfExtractor", {
       entry: path.join(__dirname, "..", "..", "..", "services", "src", "handlers", "extract", "pdf.ts"),
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
@@ -69,13 +71,15 @@ export class AiStack extends Stack {
       },
     });
 
-    props.table.grantReadWriteData(this.excelExtractor);
-    props.table.grantReadWriteData(this.pdfExtractor);
-    props.uploadsBucket.grantRead(this.excelExtractor);
-    props.uploadsBucket.grantRead(this.pdfExtractor);
-    props.artifactsBucket.grantReadWrite(this.excelExtractor);
-    props.artifactsBucket.grantReadWrite(this.pdfExtractor);
-    this.textractQueue.grantSendMessages(this.pdfExtractor);
+    pdfExtractor.addEventSource(new SqsEventSource(props.pdfQueue));
+
+    props.table.grantReadWriteData(excelExtractor);
+    props.table.grantReadWriteData(pdfExtractor);
+    props.uploadsBucket.grantRead(excelExtractor);
+    props.uploadsBucket.grantRead(pdfExtractor);
+    props.artifactsBucket.grantReadWrite(excelExtractor);
+    props.artifactsBucket.grantReadWrite(pdfExtractor);
+    this.textractQueue.grantSendMessages(pdfExtractor);
 
     const matchEngine = new NodejsFunction(this, "MatchEngine", {
       entry: path.join(__dirname, "..", "..", "..", "services", "src", "handlers", "match", "engine.ts"),
