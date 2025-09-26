@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import { AssessmentScreen } from "@/components/projects/assessment-screen";
 
 interface PageProps {
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }
 
-export default function AssessmentPage({ params }: PageProps) {
-  const projectId = params.projectId;
+export default async function AssessmentPage({ params }: PageProps) {
+  const { projectId } = await params;
 
   if (!projectId) {
     notFound();
