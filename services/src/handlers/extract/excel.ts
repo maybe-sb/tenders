@@ -534,15 +534,109 @@ function mapResponseHeaders(worksheet: ExcelJS.Worksheet): Record<string, number
   return mapping;
 }
 
+function buildResponseHierarchyMap(
+  worksheet: ExcelJS.Worksheet,
+  header: Record<string, number | undefined>,
+  headerRowNumber: number
+): Map<string, string> {
+  const hierarchyMap = new Map<string, string>();
+
+  worksheet.eachRow((row, rowNumber) => {
+    // Skip rows until after the header row
+    if (rowNumber <= headerRowNumber) {
+      return;
+    }
+
+    const itemCode = getCellValue(row, header.itemCode)?.trim();
+    const description = getCellValue(row, header.description)?.trim();
+
+    // Skip rows without meaningful content
+    if (!description || !itemCode) {
+      return;
+    }
+
+    const hierarchyLevel = getHierarchyLevel(itemCode);
+
+    // Only capture section (level 1) and sub-section (level 2) headers
+    if (hierarchyLevel === 1 || hierarchyLevel === 2) {
+      // Check if this is likely a header (no quantities typically)
+      const hasQuantity = getCellValue(row, header.qty)?.trim();
+      const hasUnit = getCellValue(row, header.unit)?.trim();
+
+      // Section/sub-section headers typically don't have quantities
+      if (!hasQuantity && !hasUnit) {
+        hierarchyMap.set(itemCode, description);
+      }
+      // But also capture if it's a clear section/sub-section even with quantities
+      else if (hierarchyLevel <= 2) {
+        // For level 1 and 2, capture the mapping regardless of quantities
+        // This handles cases where sections might have summary quantities
+        hierarchyMap.set(itemCode, description);
+      }
+    }
+  });
+
+  return hierarchyMap;
+}
+
+function isDataCorrupted(itemCode?: string, description?: string, unit?: string): boolean {
+  // Check for ExcelJS parsing errors
+  if (itemCode?.includes('[object Object]') ||
+      description?.includes('[object Object]') ||
+      unit?.includes('[object Object]')) {
+    return true;
+  }
+
+  // Check for tab characters indicating malformed data
+  if (itemCode?.includes('\t') || description?.startsWith('\t')) {
+    return true;
+  }
+
+  return false;
+}
+
+function isNoteOrComment(description: string, itemCode?: string): boolean {
+  const descriptionLower = description.toLowerCase();
+
+  // Common note patterns
+  if (descriptionLower.startsWith('no allowance') ||
+      descriptionLower.startsWith('note:') ||
+      descriptionLower.startsWith('assumption:') ||
+      descriptionLower.includes('allowance has been made') ||
+      descriptionLower.includes('excludes') ||
+      descriptionLower.includes('includes') && descriptionLower.length > 50) {
+    return true;
+  }
+
+  // Item codes that are clearly notes
+  if (itemCode && (
+      itemCode.toLowerCase().includes('allowance') ||
+      itemCode.toLowerCase().includes('note'))) {
+    return true;
+  }
+
+  return false;
+}
+
 function extractResponseItems(worksheet: ExcelJS.Worksheet): ParsedResponseItem[] {
   const { header, headerRowNumber } = findResponseHeaders(worksheet);
+
+  // Phase 1: Build hierarchy map by scanning all rows for section/sub-section headers
+  const hierarchyMap = buildResponseHierarchyMap(worksheet, header, headerRowNumber);
+
+  // Phase 2: Extract line items with proper section/sub-section context
   const items: ParsedResponseItem[] = [];
+  let currentSectionCode = "";
+  let currentSectionName = "";
+  let currentSubSectionCode = "";
+  let currentSubSectionName = "";
 
   logger.info("Starting response item extraction", {
     worksheetName: worksheet.name,
     headerRowNumber,
     totalRows: worksheet.rowCount,
-    headerMapping: Object.keys(header)
+    headerMapping: Object.keys(header),
+    sectionsFound: hierarchyMap.size
   });
 
   let extractedCount = 0;
@@ -554,56 +648,95 @@ function extractResponseItems(worksheet: ExcelJS.Worksheet): ParsedResponseItem[
       return;
     }
 
+    const itemCode = getCellValue(row, header.itemCode)?.trim();
     const description = getCellValue(row, header.description)?.trim();
 
-    // Skip rows without meaningful description
+    // Skip rows without meaningful content
     if (!description || description.length < 3) {
       skippedCount++;
       return;
     }
 
-    // Skip rows that look like section headers or totals
-    const descriptionLower = description.toLowerCase();
-    if (descriptionLower.includes('total') ||
-        descriptionLower.includes('subtotal') ||
-        descriptionLower.includes('section') ||
-        descriptionLower.startsWith('part ') ||
-        descriptionLower.match(/^[0-9]+\.?\s*$/)) {
+    // Check for data corruption
+    if (isDataCorrupted(itemCode, description, getCellValue(row, header.unit))) {
+      logger.warn("Skipping corrupted data", { itemCode, description, rowNumber });
       skippedCount++;
       return;
     }
 
-    const qty = parseNumber(getCellValue(row, header.qty));
-    const rate = parseNumber(getCellValue(row, header.rate));
-    const amount = parseNumber(getCellValue(row, header.amount));
-
-    // For valid response items, we should have at least description and some pricing data
-    const hasValidData = description && (
-      Number.isFinite(qty) ||
-      Number.isFinite(rate) ||
-      Number.isFinite(amount)
-    );
-
-    if (hasValidData) {
-      items.push({
-        sectionGuess: getCellValue(row, header.section) ?? getCellValue(row, header.sectionCode),
-        itemCode: getCellValue(row, header.itemCode) ?? undefined,
-        description,
-        unit: getCellValue(row, header.unit) ?? undefined,
-        qty: Number.isFinite(qty) ? qty : undefined,
-        rate: Number.isFinite(rate) ? rate : undefined,
-        amount: Number.isFinite(amount) ? amount : undefined,
-      });
-      extractedCount++;
-    } else {
+    // Check for notes/comments
+    if (isNoteOrComment(description, itemCode)) {
+      logger.debug("Skipping note/comment", { itemCode, description, rowNumber });
       skippedCount++;
+      return;
+    }
+
+    const hierarchyLevel = itemCode ? getHierarchyLevel(itemCode) : 999;
+
+    if (hierarchyLevel === 1) {
+      // Section header (e.g., "1" -> "Preliminaries")
+      currentSectionCode = itemCode || "";
+      currentSectionName = hierarchyMap.get(currentSectionCode) || description;
+      currentSubSectionCode = "";
+      currentSubSectionName = "";
+      skippedCount++;
+      return;
+    } else if (hierarchyLevel === 2) {
+      // Sub-section header (e.g., "1.1" -> "Establishment")
+      currentSubSectionCode = itemCode || "";
+      currentSubSectionName = hierarchyMap.get(currentSubSectionCode) || description;
+      skippedCount++;
+      return;
+    } else if (hierarchyLevel >= 3 || !itemCode) {
+      // Potential line item - check if it has quantities or units
+      const hasQuantity = getCellValue(row, header.qty)?.trim();
+      const hasUnit = getCellValue(row, header.unit)?.trim();
+
+      // Skip rows that look like section headers or totals even without item codes
+      const descriptionLower = description.toLowerCase();
+      if (descriptionLower.includes('total') ||
+          descriptionLower.includes('subtotal') ||
+          descriptionLower.includes('section') ||
+          descriptionLower.startsWith('part ') ||
+          descriptionLower.match(/^[0-9]+\.?\s*$/)) {
+        skippedCount++;
+        return;
+      }
+
+      // Only extract items that have quantities, units, or meaningful pricing data
+      const qty = parseNumber(getCellValue(row, header.qty));
+      const rate = parseNumber(getCellValue(row, header.rate));
+      const amount = parseNumber(getCellValue(row, header.amount));
+
+      const hasValidPricingData = (
+        Number.isFinite(qty) ||
+        Number.isFinite(rate) ||
+        Number.isFinite(amount)
+      );
+
+      if ((hasQuantity || hasUnit || hasValidPricingData) && (hierarchyLevel >= 3 || !itemCode)) {
+        items.push({
+          sectionGuess: currentSectionName || (getCellValue(row, header.section) ?? getCellValue(row, header.sectionCode)),
+          itemCode: itemCode ?? undefined,
+          description,
+          unit: getCellValue(row, header.unit) ?? undefined,
+          qty: Number.isFinite(qty) ? qty : undefined,
+          rate: Number.isFinite(rate) ? rate : undefined,
+          amount: Number.isFinite(amount) ? amount : undefined,
+        });
+        extractedCount++;
+      } else {
+        skippedCount++;
+      }
     }
   });
 
   logger.info("Response item extraction completed", {
     extractedCount,
     skippedCount,
-    totalProcessedRows: extractedCount + skippedCount
+    totalProcessedRows: extractedCount + skippedCount,
+    currentSection: currentSectionName,
+    currentSubSection: currentSubSectionName
   });
 
   return items;

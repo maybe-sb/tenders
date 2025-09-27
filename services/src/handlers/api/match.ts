@@ -30,7 +30,7 @@ const CREATE_MANUAL_MATCH_SCHEMA = z.object({
 });
 
 const BULK_ACCEPT_SCHEMA = z.object({
-  matchIds: z.array(z.string().min(1)).min(1).max(100), // Limit to 100 matches per request
+  matchIds: z.array(z.string().min(1)).min(1).max(500), // Limit to 500 matches per request
   comment: z.string().trim().max(2000).optional().nullable(),
 });
 
