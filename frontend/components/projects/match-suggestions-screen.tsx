@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, XCircle, Loader2, Play, Check } from "lucide-react";
 
@@ -39,6 +39,22 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
     action: null,
   });
   const [comment, setComment] = useState("");
+
+  // Column width state for resizable columns
+  const [columnWidths, setColumnWidths] = useState({
+    checkbox: 50,
+    status: 80,
+    ittItem: 200,  // Reduced default width
+    responseItem: 250,  // Adequate width for response items
+    contractor: 120,
+    confidence: 100,
+    actions: 120,
+  });
+
+  const tableRef = useRef<HTMLTableElement>(null);
+  const isResizing = useRef<string | null>(null);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
 
   // Fetch project detail for contractors
   const { data: projectDetail } = useQuery({
@@ -229,6 +245,46 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       comment: "Accepted all visible matches"
     });
   };
+
+  // Resizable column handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent, column: string) => {
+    e.preventDefault();
+    isResizing.current = column;
+    startX.current = e.clientX;
+    startWidth.current = columnWidths[column as keyof typeof columnWidths];
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [columnWidths]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+
+    const diff = e.clientX - startX.current;
+    const newWidth = Math.max(50, startWidth.current + diff);
+
+    setColumnWidths(prev => ({
+      ...prev,
+      [isResizing.current!]: newWidth,
+    }));
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isResizing.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleMouseMove]);
+
+  const ResizeHandle = ({ column }: { column: string }) => (
+    <div
+      className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-blue-500 hover:opacity-50 z-10"
+      onMouseDown={(e) => handleMouseDown(e, column)}
+    />
+  );
 
   if (error) {
     return (
@@ -431,32 +487,51 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
               }
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {statusFilter === "suggested" && (
-                    <TableHead className="w-12">
-                      <input
-                        type="checkbox"
-                        className="rounded"
-                        checked={selectedMatches.size > 0 && selectedMatches.size === suggestions.filter(s => s.status === "suggested").length}
-                        onChange={handleSelectAll}
-                      />
+            <div className="overflow-x-auto">
+              <Table ref={tableRef} style={{ tableLayout: 'fixed', width: '100%' }}>
+                <TableHeader>
+                  <TableRow>
+                    {statusFilter === "suggested" && (
+                      <TableHead style={{ width: columnWidths.checkbox, position: 'relative' }}>
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={selectedMatches.size > 0 && selectedMatches.size === suggestions.filter(s => s.status === "suggested").length}
+                          onChange={handleSelectAll}
+                        />
+                        <ResizeHandle column="checkbox" />
+                      </TableHead>
+                    )}
+                    <TableHead style={{ width: columnWidths.status, position: 'relative' }}>
+                      Status
+                      <ResizeHandle column="status" />
                     </TableHead>
-                  )}
-                  <TableHead className="w-16">Status</TableHead>
-                  <TableHead className="w-1/3">ITT Item</TableHead>
-                  <TableHead className="w-1/3">Response Item</TableHead>
-                  <TableHead className="w-32">Contractor</TableHead>
-                  <TableHead className="w-24">Confidence</TableHead>
-                  <TableHead className="w-32">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
+                    <TableHead style={{ width: columnWidths.ittItem, position: 'relative' }}>
+                      ITT Item
+                      <ResizeHandle column="ittItem" />
+                    </TableHead>
+                    <TableHead style={{ width: columnWidths.responseItem, position: 'relative' }}>
+                      Response Item
+                      <ResizeHandle column="responseItem" />
+                    </TableHead>
+                    <TableHead style={{ width: columnWidths.contractor, position: 'relative' }}>
+                      Contractor
+                      <ResizeHandle column="contractor" />
+                    </TableHead>
+                    <TableHead style={{ width: columnWidths.confidence, position: 'relative' }}>
+                      Confidence
+                      <ResizeHandle column="confidence" />
+                    </TableHead>
+                    <TableHead style={{ width: columnWidths.actions, position: 'relative' }}>
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
               <TableBody>
                 {suggestions.map((suggestion) => (
                   <TableRow key={suggestion.matchId} className={selectedMatches.has(suggestion.matchId) ? "bg-blue-50" : ""}>
                     {statusFilter === "suggested" && (
-                      <TableCell>
+                      <TableCell style={{ width: columnWidths.checkbox, overflow: 'hidden' }}>
                         <input
                           type="checkbox"
                           className="rounded"
@@ -466,23 +541,26 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                         />
                       </TableCell>
                     )}
-                    <TableCell>
+                    <TableCell style={{ width: columnWidths.status, overflow: 'hidden' }}>
                       {getStatusBadge(suggestion.status)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell style={{ width: columnWidths.ittItem, overflow: 'hidden' }}>
                       <div className="space-y-1">
-                        <div className="font-medium text-base leading-tight">{suggestion.ittDescription}</div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="font-medium text-sm leading-tight truncate" title={suggestion.ittDescription}>
+                          {suggestion.ittDescription}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
                           ID: {suggestion.ittItemId}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell style={{ width: columnWidths.responseItem, overflow: 'hidden' }}>
                       <div className="space-y-1">
-                        <div className="font-medium text-base leading-tight">
+                        <div className="font-medium text-sm leading-tight truncate"
+                             title={suggestion.responseDescription || "No response description"}>
                           {suggestion.responseDescription || <span className="text-red-500 italic">No response description</span>}
                         </div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-xs text-muted-foreground truncate">
                           {suggestion.responseItemCode ? (
                             <span>Code: {suggestion.responseItemCode}</span>
                           ) : (
@@ -494,16 +572,18 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{suggestion.contractorName}</div>
+                    <TableCell style={{ width: columnWidths.contractor, overflow: 'hidden' }}>
+                      <div className="font-medium text-sm truncate" title={suggestion.contractorName}>
+                        {suggestion.contractorName}
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell style={{ width: columnWidths.confidence, overflow: 'hidden' }}>
                       <div className="flex flex-col items-center gap-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <div
-                            className={`w-3 h-3 rounded-full ${getConfidenceColor(suggestion.confidence)}`}
+                            className={`w-2 h-2 rounded-full ${getConfidenceColor(suggestion.confidence)}`}
                           />
-                          <span className="text-lg font-bold">
+                          <span className="text-sm font-bold">
                             {Math.round(suggestion.confidence * 100)}%
                           </span>
                         </div>
@@ -512,12 +592,12 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell style={{ width: columnWidths.actions, overflow: 'hidden' }}>
                       {suggestion.status === "suggested" ? (
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
-                            className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700"
+                            className="h-7 w-7 p-0 bg-green-600 hover:bg-green-700"
                             onClick={() => handleQuickAction(suggestion, "accept")}
                             disabled={updateMatchMutation.isPending}
                           >
@@ -526,7 +606,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                           <Button
                             size="sm"
                             variant="destructive"
-                            className="h-8 w-8 p-0"
+                            className="h-7 w-7 p-0"
                             onClick={() => handleQuickAction(suggestion, "reject")}
                             disabled={updateMatchMutation.isPending}
                           >
@@ -534,7 +614,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-sm text-muted-foreground font-medium">
+                        <span className="text-xs text-muted-foreground font-medium">
                           {suggestion.status === "accepted" ? "✅ Accepted" :
                            suggestion.status === "rejected" ? "❌ Rejected" : "Manual"}
                         </span>
@@ -544,6 +624,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
