@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileSpreadsheet, RefreshCw, UploadCloud } from "lucide-react";
+import { FileSpreadsheet, RefreshCw, UploadCloud, Eye } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -232,6 +233,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
                 <TableHead>Status</TableHead>
                 <TableHead>Uploaded</TableHead>
                 <TableHead>Line items</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -245,6 +247,14 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
                   </TableCell>
                   <TableCell>{new Date(doc.uploadedAt).toLocaleString()}</TableCell>
                   <TableCell>{doc.stats?.lineItems ?? "-"}</TableCell>
+                  <TableCell>
+                    <Button asChild variant="ghost" size="sm" disabled={doc.parseStatus !== "parsed"}>
+                      <Link href={`/projects/${projectId}/documents/${doc.docId}`}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Link>
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
