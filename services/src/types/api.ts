@@ -46,6 +46,9 @@ export interface MatchResponse {
   responseDescription?: string;
   responseItemCode?: string;
   responseAmount?: number;
+  responseQty?: number;
+  responseRate?: number;
+  responseUnit?: string;
   status: MatchEntity["status"];
   confidence: number;
   comment?: string | null;

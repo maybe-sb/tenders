@@ -140,11 +140,20 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
                 <p className="text-xs text-muted-foreground">
                   {item.itemCode ?? "No code"}
                 </p>
-                {item.amount !== undefined && (
-                  <p className="text-sm text-muted-foreground">
-                    Amount: {item.amount?.toLocaleString?.() ?? "-"}
-                  </p>
-                )}
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  {item.qty !== undefined && (
+                    <span>Qty: {item.qty.toLocaleString()}</span>
+                  )}
+                  {item.unit && (
+                    <span>Unit: {item.unit}</span>
+                  )}
+                  {item.rate !== undefined && (
+                    <span>Rate: {item.rate.toLocaleString()}</span>
+                  )}
+                  {item.amount !== undefined && (
+                    <span>Amount: {item.amount.toLocaleString()}</span>
+                  )}
+                </div>
               </DraggableCard>
             ))}
           </div>

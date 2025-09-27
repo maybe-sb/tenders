@@ -16,8 +16,11 @@ interface MatchReviewRow {
   matchId: string;
   ittDescription: string;
   contractorName: string;
-  responseItem?: Pick<ResponseItem, "description" | "itemCode" | "amount"> & {
+  responseItem?: Pick<ResponseItem, "description" | "itemCode" | "amount" | "qty" | "rate" | "unit"> & {
     amount?: number;
+    qty?: number;
+    rate?: number;
+    unit?: string;
   };
   status: MatchStatus;
   confidence: number;
@@ -230,6 +233,20 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
                     <p className="text-xs text-muted-foreground truncate" title={row.responseItem.itemCode ?? "No code"}>
                       {row.responseItem.itemCode ?? "No code"}
                     </p>
+                    <div className="flex gap-3 text-xs text-muted-foreground">
+                      {row.responseItem.qty !== undefined && (
+                        <span>Qty: {row.responseItem.qty.toLocaleString()}</span>
+                      )}
+                      {row.responseItem.unit && (
+                        <span>Unit: {row.responseItem.unit}</span>
+                      )}
+                      {row.responseItem.rate !== undefined && (
+                        <span>Rate: {row.responseItem.rate.toLocaleString()}</span>
+                      )}
+                      {row.responseItem.amount !== undefined && (
+                        <span>Amount: {row.responseItem.amount.toLocaleString()}</span>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">No response item selected</p>
