@@ -115,7 +115,20 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to update match");
+      console.error("Match update error:", error);
+
+      try {
+        const errorMessage = error instanceof Error ? error.message : "Failed to update match";
+
+        // Check if it's a conflict error
+        if (errorMessage.includes("Response item is already matched")) {
+          toast.error("This response item is already matched to a different requirement");
+        } else {
+          toast.error(errorMessage);
+        }
+      } catch (e) {
+        toast.error("Failed to update match");
+      }
     },
   });
 
@@ -133,7 +146,24 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       setSelectedMatches(new Set());
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to bulk accept matches");
+      console.error("Bulk accept error:", error);
+
+      // Try to parse detailed conflict information
+      try {
+        const errorMessage = error instanceof Error ? error.message : "Failed to bulk accept matches";
+
+        // Check if it's a conflict error with detailed information
+        if (errorMessage.includes("Bulk accept failed due to conflicts")) {
+          toast.error("Some matches conflict with existing accepted matches");
+          // Could show detailed conflict information in the future
+        } else if (errorMessage.includes("Response item is already matched")) {
+          toast.error("One or more items are already matched to different requirements");
+        } else {
+          toast.error(errorMessage);
+        }
+      } catch (e) {
+        toast.error("Failed to bulk accept matches");
+      }
     },
   });
 

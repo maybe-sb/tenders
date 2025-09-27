@@ -108,6 +108,37 @@ export async function updateMatchStatus(event: ApiEvent, params: Record<string, 
   }
 
   const payload = UPDATE_MATCH_STATUS_SCHEMA.parse(getJsonBody(event));
+
+  // Get the existing match to check for conflicts when accepting
+  const existingMatch = await getProjectMatch(ownerSub, projectId, payload.matchId);
+  if (!existingMatch) {
+    return jsonResponse(404, { message: "Match not found" });
+  }
+
+  // Validate conflict resolution when accepting a match
+  if (payload.status === "accepted") {
+    const allMatches = await fetchProjectMatches(ownerSub, projectId, { status: "all" });
+
+    // Check if this response item is already matched to a different ITT item
+    // Rule: One response item cannot match multiple ITT items (contractor can't fulfill multiple requirements with same item)
+    const conflicting = allMatches.find((match) =>
+      match.responseItemId === existingMatch.responseItemId &&
+      match.ittItemId !== existingMatch.ittItemId &&
+      match.status === "accepted" &&
+      match.matchId !== payload.matchId
+    );
+
+    if (conflicting) {
+      return jsonResponse(409, {
+        message: "Response item is already matched to a different ITT item",
+        details: {
+          conflictingMatchId: conflicting.matchId,
+          conflictingIttItemId: conflicting.ittItemId
+        }
+      });
+    }
+  }
+
   const match = await updateProjectMatch(ownerSub, projectId, payload.matchId, {
     status: payload.status,
     confidence: payload.confidence,
@@ -166,9 +197,22 @@ export async function createManualMatch(event: ApiEvent, params: Record<string, 
   }
 
   const matches = await fetchProjectMatches(ownerSub, projectId, { status: "all" });
-  const conflicting = matches.find((match) => match.responseItemId === payload.responseItemId && match.status !== "rejected");
+  // Check if this response item is already matched to a different ITT item
+  // Rule: One response item cannot match multiple ITT items
+  const conflicting = matches.find((match) =>
+    match.responseItemId === payload.responseItemId &&
+    match.ittItemId !== payload.ittItemId &&
+    match.status === "accepted"
+  );
   if (conflicting) {
-    return jsonResponse(409, { message: "Response item already matched" });
+    return jsonResponse(409, {
+      message: "Response item is already matched to a different ITT item",
+      details: {
+        conflictingMatchId: conflicting.matchId,
+        conflictingIttItemId: conflicting.ittItemId,
+        responseItemId: payload.responseItemId
+      }
+    });
   }
 
   const matchId = `${payload.responseItemId}:${payload.ittItemId}`;
@@ -201,7 +245,47 @@ export async function bulkAcceptMatches(event: ApiEvent, params: Record<string, 
 
   const payload = BULK_ACCEPT_SCHEMA.parse(getJsonBody(event));
 
-  // Process matches in parallel
+  // Get all existing matches to validate conflicts before bulk accepting
+  const allMatches = await fetchProjectMatches(ownerSub, projectId, { status: "all" });
+  const matchesToAccept = allMatches.filter(match => payload.matchIds.includes(match.matchId));
+
+  // Validate for conflicts before accepting any matches
+  const conflicts: Array<{ matchId: string; error: string; conflictDetails: any }> = [];
+
+  for (const match of matchesToAccept) {
+    // Check if this response item is already matched to a different ITT item
+    // Rule: One response item cannot match multiple ITT items
+    const conflicting = allMatches.find((existingMatch) =>
+      existingMatch.responseItemId === match.responseItemId &&
+      existingMatch.ittItemId !== match.ittItemId &&
+      existingMatch.status === "accepted" &&
+      existingMatch.matchId !== match.matchId
+    );
+
+    if (conflicting) {
+      conflicts.push({
+        matchId: match.matchId,
+        error: "Response item is already matched to a different ITT item",
+        conflictDetails: {
+          conflictingMatchId: conflicting.matchId,
+          conflictingIttItemId: conflicting.ittItemId,
+          responseItemId: match.responseItemId
+        }
+      });
+    }
+  }
+
+  // If there are conflicts, return them without processing any matches
+  if (conflicts.length > 0) {
+    return jsonResponse(409, {
+      message: "Bulk accept failed due to conflicts",
+      conflicts,
+      conflictCount: conflicts.length,
+      totalRequested: payload.matchIds.length
+    });
+  }
+
+  // Process matches in parallel (only if no conflicts)
   const results = await Promise.allSettled(
     payload.matchIds.map(async (matchId) => {
       const updated = await updateProjectMatch(ownerSub, projectId, matchId, {
