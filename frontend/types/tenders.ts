@@ -166,6 +166,9 @@ export interface MatchSuggestion {
   responseDescription?: string;
   responseItemCode?: string;
   responseAmount?: number;
+  responseQty?: number;
+  responseRate?: number;
+  responseUnit?: string;
   contractorName: string;
   confidence: number;
   status: MatchStatus;

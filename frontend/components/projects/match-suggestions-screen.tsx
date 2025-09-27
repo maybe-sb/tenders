@@ -593,15 +593,28 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                              title={suggestion.responseDescription || "No response description"}>
                           {suggestion.responseDescription || <span className="text-red-500 italic">No response description</span>}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {suggestion.responseItemCode ? (
-                            <span>Code: {suggestion.responseItemCode}</span>
-                          ) : (
-                            <span className="text-gray-400 italic">No code</span>
-                          )}
-                          {suggestion.responseAmount && (
-                            <span className="ml-2">Amount: ${suggestion.responseAmount.toLocaleString()}</span>
-                          )}
+                        <div className="text-xs text-muted-foreground">
+                          <div className="truncate">
+                            {suggestion.responseItemCode ? (
+                              <span>Code: {suggestion.responseItemCode}</span>
+                            ) : (
+                              <span className="text-gray-400 italic">No code</span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {suggestion.responseQty !== undefined && (
+                              <span>Qty: {suggestion.responseQty.toLocaleString()}</span>
+                            )}
+                            {suggestion.responseUnit && (
+                              <span>Unit: {suggestion.responseUnit}</span>
+                            )}
+                            {suggestion.responseRate !== undefined && (
+                              <span>Rate: ${suggestion.responseRate.toLocaleString()}</span>
+                            )}
+                            {suggestion.responseAmount !== undefined && (
+                              <span>Amount: ${suggestion.responseAmount.toLocaleString()}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </TableCell>
