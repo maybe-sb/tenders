@@ -97,6 +97,9 @@ export interface ResponseItem {
 
 export type MatchStatus = "suggested" | "accepted" | "rejected" | "manual";
 
+// Filter options for UI components (includes special filters)
+export type MatchFilterOption = MatchStatus | "all" | "reviewable";
+
 export interface MatchRecord {
   matchId: string;
   ittItemId: string;

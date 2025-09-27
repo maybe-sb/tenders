@@ -3,9 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import { MatchStatus, MatchSuggestion } from "@/types/tenders";
+import { MatchFilterOption, MatchSuggestion } from "@/types/tenders";
 
-export function useProjectMatches(projectId: string, status: MatchStatus | "all" = "suggested") {
+export function useProjectMatches(projectId: string, status: MatchFilterOption = "suggested") {
   return useQuery({
     queryKey: ["project-matches", projectId, status],
     queryFn: () => api.listMatches(projectId, { status }),

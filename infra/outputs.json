@@ -1,0 +1,39 @@
+{
+  "Tenders-dev-Storage": {
+    "ExcelQueueUrl": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-excel-uploads-dev",
+    "ExportsOutputFnGetAttUploadsBucket5E5E9B64Arn8603C131": "arn:aws:s3:::tenders-uploads-dev-478567332698",
+    "UploadsBucketName": "tenders-uploads-dev-478567332698",
+    "ExportsOutputRefUploadsBucket5E5E9B64F2F56CC2": "tenders-uploads-dev-478567332698",
+    "ExportsOutputFnGetAttExcelUploadQueue0204732EArn76A73F26": "arn:aws:sqs:ap-southeast-2:478567332698:tenders-excel-uploads-dev",
+    "PdfQueueUrl": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-pdf-uploads-dev",
+    "ExportsOutputFnGetAttArtifactsBucket2AAC5544ArnD57FAE19": "arn:aws:s3:::tenders-artifacts-dev-478567332698",
+    "ExportsOutputFnGetAttPdfUploadQueue1FD80E36Arn2422FC4C": "arn:aws:sqs:ap-southeast-2:478567332698:tenders-pdf-uploads-dev",
+    "ArtifactsBucketName": "tenders-artifacts-dev-478567332698",
+    "ExportsOutputRefArtifactsBucket2AAC55442DB5E6C9": "tenders-artifacts-dev-478567332698"
+  },
+  "Tenders-dev-Data": {
+    "TableName": "tenders-dev",
+    "ExportsOutputFnGetAttTendersTable1D12E616Arn4D12771D": "arn:aws:dynamodb:ap-southeast-2:478567332698:table/tenders-dev",
+    "ExportsOutputRefTendersTable1D12E6164C16A31A": "tenders-dev"
+  },
+  "Tenders-dev-Auth": {
+    "UserPoolClientId": "j0df6mdq80guot0kn609qsj4m",
+    "UserPoolId": "ap-southeast-2_YCkuw1sV8",
+    "IdentityPoolId": "ap-southeast-2:0795b43d-a8b5-4695-a4c8-ce1eeb39ac46"
+  },
+  "Tenders-dev-Ai": {
+    "ReportQueueUrl": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-report-dev",
+    "ExportsOutputRefReportQueueEBFFFAE83CD445B9": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-report-dev",
+    "ExportsOutputRefMatchQueue832BFE513CA90223": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-match-dev",
+    "ExportsOutputFnGetAttReportQueueEBFFFAE8Arn485F02B7": "arn:aws:sqs:ap-southeast-2:478567332698:tenders-report-dev",
+    "ExportsOutputRefTextractQueue865AB0E9B2108E8A": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-textract-dev",
+    "TextractQueueUrl": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-textract-dev",
+    "ExportsOutputFnGetAttTextractQueue865AB0E9Arn70D861CA": "arn:aws:sqs:ap-southeast-2:478567332698:tenders-textract-dev",
+    "ExportsOutputFnGetAttMatchQueue832BFE51Arn4E4242CC": "arn:aws:sqs:ap-southeast-2:478567332698:tenders-match-dev",
+    "MatchQueueUrl": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-match-dev"
+  },
+  "Tenders-dev-Api": {
+    "TendersApiEndpoint04DEEAE6": "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev/",
+    "ApiUrl": "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev/"
+  }
+}

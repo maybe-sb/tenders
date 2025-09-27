@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { MatchSuggestion, MatchStatus, ContractorSummary } from "@/types/tenders";
+import { MatchSuggestion, MatchStatus, MatchFilterOption, ContractorSummary } from "@/types/tenders";
 
 interface MatchSuggestionsScreenProps {
   projectId: string;
@@ -29,7 +29,7 @@ interface CommentDialogState {
 export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProps) {
   const queryClient = useQueryClient();
 
-  const [statusFilter, setStatusFilter] = useState<MatchStatus | "all" | "reviewable">("reviewable");
+  const [statusFilter, setStatusFilter] = useState<MatchFilterOption>("reviewable");
   const [contractorFilter, setContractorFilter] = useState<string>("all");
   const [confidenceFilter, setConfidenceFilter] = useState<"100" | "90+" | "80+" | "all">("100");
   const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
@@ -472,7 +472,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
               <Label htmlFor="status-filter">Status:</Label>
               <Select
                 value={statusFilter}
-                onValueChange={(value: MatchStatus | "all" | "reviewable") => setStatusFilter(value)}
+                onValueChange={(value: MatchFilterOption) => setStatusFilter(value)}
               >
                 <SelectTrigger id="status-filter" className="w-32">
                   <SelectValue />

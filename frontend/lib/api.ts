@@ -4,6 +4,7 @@ import {
   ExceptionRecord,
   ITTItem,
   MatchStatus,
+  MatchFilterOption,
   MatchSuggestion,
   PresignedUpload,
   ProjectDetail,
@@ -92,7 +93,7 @@ export const api = {
     request<ResponseItem[]>(`/projects/${projectId}/responses/items`, "GET", undefined, {
       query: { unmatchedOnly: params?.unmatchedOnly },
     }),
-  listMatches: (projectId: string, params?: { status?: MatchStatus | "all"; contractor?: string }) =>
+  listMatches: (projectId: string, params?: { status?: MatchFilterOption; contractor?: string }) =>
     request<MatchSuggestion[]>(`/projects/${projectId}/match`, "GET", undefined, {
       query: { status: params?.status, contractor: params?.contractor },
     }),

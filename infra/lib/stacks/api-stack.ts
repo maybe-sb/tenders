@@ -55,7 +55,7 @@ export class ApiStack extends Stack {
       defaultCorsPreflightOptions: {
         allowOrigins: Cors.ALL_ORIGINS,
         allowMethods: Cors.ALL_METHODS,
-        allowHeaders: Cors.DEFAULT_HEADERS,
+        allowHeaders: ["*"],
       },
       deployOptions: {
         stageName: props.envName,
