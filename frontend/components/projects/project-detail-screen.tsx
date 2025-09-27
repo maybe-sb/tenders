@@ -16,6 +16,7 @@ import { MatchReviewTable } from "@/components/projects/match-review-table";
 import { DnDPanel } from "@/components/projects/dnd-panel";
 import { ExceptionsList } from "@/components/projects/exceptions-list";
 import { StatusBadge } from "@/components/projects/status-badge";
+import { MatchSuggestionsScreen } from "@/components/projects/match-suggestions-screen";
 import {
   useProjectDetail,
   useProjectExceptions,
@@ -251,12 +252,16 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="matches" className="space-y-4">
+      <Tabs defaultValue="auto-match" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="auto-match">Auto-Match & Review</TabsTrigger>
           <TabsTrigger value="matches">Match review</TabsTrigger>
           <TabsTrigger value="manual">Manual mapping</TabsTrigger>
           <TabsTrigger value="exceptions">Exceptions</TabsTrigger>
         </TabsList>
+        <TabsContent value="auto-match" className="space-y-4">
+          <MatchSuggestionsScreen projectId={projectId} />
+        </TabsContent>
         <TabsContent value="matches" className="space-y-4">
           <MatchReviewTable
             rows={(matches ?? []).map((match) => ({

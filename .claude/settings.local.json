@@ -8,7 +8,13 @@
       "Bash(export CDK_DEFAULT_ACCOUNT=478567332698)",
       "Bash(export CDK_DEFAULT_REGION=ap-southeast-2)",
       "Bash(npm run build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(powershell:*)",
+      "Bash(node:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

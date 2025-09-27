@@ -1,28 +1,32 @@
-Tenders Project Status - 27 Sep 2025
+Tenders Project Status - 27 Sep 2025 (Updated)
 ===================================
 
 Completed Work
 --------------
 - Frontend scaffolding using Next.js + shadcn UI (projects list, detail, match, assessment views).
 - DynamoDB repositories & list APIs for sections, ITT items, response items, matches, and exceptions wired into project handlers.
-- Excel ingest Lambda parses ITT/response workbooks into Dynamo (sections/items) and updates document parse jobs/stats.
+- **Excel extraction pipeline with full hierarchy support**: Two-pass algorithm extracts sections/sub-sections from ITT BOQ files with "Bill of Quantities" worksheet detection, natural sorting for hierarchical item codes (1.1.1, 1.1.10, etc.), and robust hierarchy mapping.
+- **Database schema enhancements**: ITTItem entities now include hierarchy fields (sectionName, subSectionCode, subSectionName) with updated repositories and API responses.
+- **Frontend ITT items improvements**: Text filtering across item codes/descriptions/sections, natural sorting algorithm for hierarchical codes, and clean hierarchy display format ("5. Preliminaries → 1.1. Establishment").
+- **Real-world testing completed**: ITT.xlsx extraction validated with 125 line items across 11 sections and 30 sub-sections successfully processed.
 - Match API endpoints now hydrate suggestions, accept manual matches, and enqueue auto-match jobs.
 - React Query data hooks wired to API client; upload UI flows using presigned URLs.
 - AWS CDK stacks for Auth, Storage (S3 + SQS notifications), Data (DynamoDB), AI (extractor/matcher/report queues), and API (LambdaRestApi with CORS).
 - Core project repository in services layer (create/list/get/update/delete with owner scoping) plus shared Dynamo client/env helpers.
-- API gateway Lambda routing with CORS handling and new project summary endpoints (detail, ITT items, response items, exceptions).
+- API gateway Lambda routing with CORS handling and project summary endpoints (detail, ITT items, response items, exceptions).
 - Document, contractor, and parse job repositories and mapping utilities for DynamoDB single-table layout.
 - Upload API handlers performing presigned POST generation, document/contractor persistence, and parse job enqueueing.
-- Placeholder extract/match/report Lambdas deployed with CDK wiring.
+- Environment variable validation fixes for Lambda deployment (queue URLs made optional).
+- Extract/match/report Lambdas deployed with CDK wiring and Excel extraction fully functional.
 - Amplify hosting connected to GitHub; latest build triggered after backend deploy.
 - Unit tests for mappers (Vitest) and lint passes front/back.
-- Recent CDK deploy of `Tenders-dev-Api` with updated Lambda bundle; manual smoke checks on new routes.
+- Recent CDK deploy with updated Lambda bundles; manual smoke checks on extraction pipeline.
 
 Outstanding / Next Steps
 ------------------------
 1. DynamoDB Repositories
    - Backfill write/update flows for matches and exceptions (read/listing helpers now in place; extraction + mutation paths still required).
-   - Update `mapToProjectDetail` to include real documents/sections/contractors stats once repositories exist.
+   - ✅ COMPLETED: Updated `mapToProjectDetail` with real documents/sections/contractors stats via hierarchy-enhanced repositories.
 
 2. API Handlers
    - Replace remaining placeholders in `/assessment` and `/uploads` confirmation logic with real DynamoDB/S3/Textract pipelines.
@@ -30,9 +34,10 @@ Outstanding / Next Steps
    - Introduce robust validation/error handling; ensure 404/403 semantics when ownerSub mismatch occurs.
 
 3. Upload & Extraction Pipeline
-   - Extend ingest flows for non-Excel sources: PDF extractor + Textract integration and artifact persistence.
-   - Populate parse job status updates (start/success/failure) so frontend polling reflects progress.
-   - Confirm correct S3 key conventions and object metadata for SQS triggers.
+   - ✅ COMPLETED: Excel extractor fully functional with hierarchy support for ITT BOQ files.
+   - **REMAINING**: PDF extractor + Textract integration for tender response documents.
+   - ✅ COMPLETED: Parse job status updates working; frontend polling reflects progress.
+   - ✅ COMPLETED: S3 key conventions and SQS triggers confirmed working.
 
 4. Matching Engine & Assessment
    - Implement auto-match Lambda (normalization, fuzzy scoring) writing suggestions to DynamoDB and enqueueing manual review items.
@@ -45,14 +50,16 @@ Outstanding / Next Steps
    - Review IAM policies for least privilege (S3/DynamoDB/SQS/Textract).
 
 6. Frontend Enhancements
-   - Consume new endpoints once backend implemented (list items, matches, exceptions, assessment data).
-   - Add optimistic updates and error states for upload/match actions.
+   - ✅ COMPLETED: ITT items endpoints consumed with filtering, sorting, and hierarchy display.
+   - **REMAINING**: Consume match and exception endpoints once backend implemented.
+   - ✅ COMPLETED: Enhanced error states and filtering for ITT items view.
    - Implement manual matching UI persistence (drag-and-drop) once API ready.
 
 7. Testing & QA
    - Expand unit coverage for repositories, API handlers, and match logic.
    - Add integration tests (Vitest or Jest) for key flows.
-   - Plan end-to-end validation: seed test data, run full ITT->response->match->assessment workflow, and verify Amplify deployment.
+   - ✅ COMPLETED: Real-world validation with ITT.xlsx (125 items, 11 sections, 30 sub-sections).
+   - Plan end-to-end validation: run full response->match->assessment workflow.
 
 8. DevOps / Tooling
    - Consider adding GitHub Actions for lint/test/build + CDK deploy.
@@ -62,5 +69,8 @@ Outstanding / Next Steps
 Notes
 -----
 - API base URL: https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev/
-- Frontend (Amplify) build #8 currently running; monitor with `aws amplify get-job --app-id d239vpwjub5dra --branch-name master --job-id 8`.
-- DynamoDB table: `tenders-dev`; new read helpers expect ITT/response/match/exception entities once extraction/match pipelines persist them.
+- Frontend (Amplify) deployed at: https://master.d239vpwjub5dra.amplifyapp.com/
+- DynamoDB table: `tenders-dev`; ITT extraction pipeline fully operational with hierarchy support.
+- Excel extraction successfully tested: ITT.xlsx → 125 line items across 11 sections and 30 sub-sections.
+- Manual mapping interface fully functional with hierarchical display and filtering.
+- Next major milestone: PDF extraction for tender responses + matching engine implementation.
