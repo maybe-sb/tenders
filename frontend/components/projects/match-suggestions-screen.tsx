@@ -43,10 +43,9 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
   // Column width state for resizable columns
   const [columnWidths, setColumnWidths] = useState({
     checkbox: 50,
-    status: 80,
-    ittItem: 200,  // Reduced default width
-    responseItem: 250,  // Adequate width for response items
-    contractor: 120,
+    ittItem: 250,  // Slightly increased since Status column removed
+    responseItem: 300,  // More space for response items
+    contractor: 140,
     confidence: 100,
     actions: 120,
   });
@@ -502,10 +501,6 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                         <ResizeHandle column="checkbox" />
                       </TableHead>
                     )}
-                    <TableHead style={{ width: columnWidths.status, position: 'relative' }}>
-                      Status
-                      <ResizeHandle column="status" />
-                    </TableHead>
                     <TableHead style={{ width: columnWidths.ittItem, position: 'relative' }}>
                       ITT Item
                       <ResizeHandle column="ittItem" />
@@ -541,9 +536,6 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                         />
                       </TableCell>
                     )}
-                    <TableCell style={{ width: columnWidths.status, overflow: 'hidden' }}>
-                      {getStatusBadge(suggestion.status)}
-                    </TableCell>
                     <TableCell style={{ width: columnWidths.ittItem, overflow: 'hidden' }}>
                       <div className="space-y-1">
                         <div className="font-medium text-sm leading-tight truncate" title={suggestion.ittDescription}>
@@ -600,6 +592,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                             className="h-7 w-7 p-0 bg-green-600 hover:bg-green-700"
                             onClick={() => handleQuickAction(suggestion, "accept")}
                             disabled={updateMatchMutation.isPending}
+                            title="Accept match"
                           >
                             <CheckCircle className="h-4 w-4" />
                           </Button>
@@ -609,15 +602,20 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                             className="h-7 w-7 p-0"
                             onClick={() => handleQuickAction(suggestion, "reject")}
                             disabled={updateMatchMutation.isPending}
+                            title="Reject match"
                           >
                             <XCircle className="h-4 w-4" />
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground font-medium">
-                          {suggestion.status === "accepted" ? "✅ Accepted" :
-                           suggestion.status === "rejected" ? "❌ Rejected" : "Manual"}
-                        </span>
+                        <Badge
+                          variant={suggestion.status === "accepted" ? "default" :
+                                   suggestion.status === "rejected" ? "destructive" : "secondary"}
+                          className="text-xs"
+                        >
+                          {suggestion.status === "accepted" ? "Accepted" :
+                           suggestion.status === "rejected" ? "Rejected" : "Manual"}
+                        </Badge>
                       )}
                     </TableCell>
                   </TableRow>
