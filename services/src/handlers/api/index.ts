@@ -152,7 +152,7 @@ export async function handler(event: APIGatewayProxyEvent | APIGatewayProxyEvent
       if (match) {
         const params = match.groups ?? {};
         logger.info("Handling route", { method, path, params });
-        return route.handler(event as ApiEvent, params);
+        return await route.handler(event as ApiEvent, params);
       }
     }
 
