@@ -362,11 +362,11 @@ function resolveAmount(response?: ResponseItemEntity): number | undefined {
     return undefined;
   }
   if (typeof response.amount === "number" && !Number.isNaN(response.amount)) {
-    return response.amount;
+    return Math.round(response.amount * 100) / 100;
   }
   if (typeof response.qty === "number" && typeof response.rate === "number") {
     const derived = response.qty * response.rate;
-    return Number.isFinite(derived) ? derived : undefined;
+    return Number.isFinite(derived) ? Math.round(derived * 100) / 100 : undefined;
   }
   return undefined;
 }

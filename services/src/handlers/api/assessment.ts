@@ -198,11 +198,11 @@ export async function getAssessment(event: ApiEvent, params: Record<string, stri
 // Helper function to calculate response item amount
 function calculateResponseAmount(responseItem: ResponseItemEntity): number | null {
   if (typeof responseItem.amount === "number" && !Number.isNaN(responseItem.amount)) {
-    return responseItem.amount;
+    return Math.round(responseItem.amount * 100) / 100;
   }
   if (typeof responseItem.qty === "number" && typeof responseItem.rate === "number") {
     const calculated = responseItem.qty * responseItem.rate;
-    return Number.isFinite(calculated) ? calculated : null;
+    return Number.isFinite(calculated) ? Math.round(calculated * 100) / 100 : null;
   }
   return null;
 }

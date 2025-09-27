@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { formatAmount } from "@/lib/currency";
 import { MatchSuggestion, MatchStatus, MatchFilterOption, ContractorSummary } from "@/types/tenders";
 
 interface MatchSuggestionsScreenProps {
@@ -609,10 +610,10 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                               <span>Unit: {suggestion.responseUnit}</span>
                             )}
                             {suggestion.responseRate !== undefined && (
-                              <span>Rate: ${suggestion.responseRate.toLocaleString()}</span>
+                              <span>Rate: ${formatAmount(suggestion.responseRate)}</span>
                             )}
                             {suggestion.responseAmount !== undefined && (
-                              <span>Amount: ${suggestion.responseAmount.toLocaleString()}</span>
+                              <span>Amount: ${formatAmount(suggestion.responseAmount)}</span>
                             )}
                           </div>
                         </div>

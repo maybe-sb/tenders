@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { MatchStatus, ResponseItem } from "@/types/tenders";
 import { useState, useRef, useCallback, useMemo } from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import { formatAmount } from "@/lib/currency";
 
 interface MatchReviewRow {
   matchId: string;
@@ -241,10 +242,10 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
                         <span>Unit: {row.responseItem.unit}</span>
                       )}
                       {row.responseItem.rate !== undefined && (
-                        <span>Rate: {row.responseItem.rate.toLocaleString()}</span>
+                        <span>Rate: ${formatAmount(row.responseItem.rate)}</span>
                       )}
                       {row.responseItem.amount !== undefined && (
-                        <span>Amount: {row.responseItem.amount.toLocaleString()}</span>
+                        <span>Amount: ${formatAmount(row.responseItem.amount)}</span>
                       )}
                     </div>
                   </div>

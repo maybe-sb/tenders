@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatAmount } from "@/lib/currency";
 
 interface ItemTableProps {
   items: ITTItem[];
@@ -33,8 +34,8 @@ export function ItemTable({ items }: ItemTableProps) {
               <TableCell>{item.description}</TableCell>
               <TableCell>{item.unit}</TableCell>
               <TableCell className="text-right">{item.qty.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{item.rate.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{item.amount.toLocaleString()}</TableCell>
+              <TableCell className="text-right">${formatAmount(item.rate)}</TableCell>
+              <TableCell className="text-right">${formatAmount(item.amount)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

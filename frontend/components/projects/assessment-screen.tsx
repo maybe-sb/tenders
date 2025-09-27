@@ -11,12 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAssessment, useGenerateReport } from "@/hooks/use-assessment";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/lib/currency";
 
 interface AssessmentScreenProps {
   projectId: string;
 }
-
-const DEFAULT_CURRENCY = "AUD";
 
 export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   const { data, isLoading } = useAssessment(projectId);
@@ -217,10 +216,3 @@ function renderResponseAmount(value: number | null | undefined) {
   return formatCurrency(value);
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: DEFAULT_CURRENCY,
-    maximumFractionDigits: 2,
-  }).format(value);
-}

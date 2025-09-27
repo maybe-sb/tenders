@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
+import { formatAmount } from "@/lib/currency";
 import { ITTItem, ResponseItem } from "@/types/tenders";
 
 interface DocumentDetailScreenProps {
@@ -287,8 +288,8 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
               </TableCell>
               <TableCell style={{ width: columnWidths.unit, overflow: 'hidden' }} className="truncate">{item.unit}</TableCell>
               <TableCell style={{ width: columnWidths.qty, overflow: 'hidden' }} className="text-right font-mono">{item.qty.toLocaleString()}</TableCell>
-              <TableCell style={{ width: columnWidths.rate, overflow: 'hidden' }} className="text-right font-mono">${item.rate.toLocaleString()}</TableCell>
-              <TableCell style={{ width: columnWidths.amount, overflow: 'hidden' }} className="text-right font-mono">${item.amount.toLocaleString()}</TableCell>
+              <TableCell style={{ width: columnWidths.rate, overflow: 'hidden' }} className="text-right font-mono">${formatAmount(item.rate)}</TableCell>
+              <TableCell style={{ width: columnWidths.amount, overflow: 'hidden' }} className="text-right font-mono">${formatAmount(item.amount)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -405,10 +406,10 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
                 {item.qty !== undefined ? item.qty.toLocaleString() : "-"}
               </TableCell>
               <TableCell style={{ width: columnWidths.rate, overflow: 'hidden' }} className="text-right font-mono">
-                {item.rate !== undefined ? `$${item.rate.toLocaleString()}` : "-"}
+                {item.rate !== undefined ? `$${formatAmount(item.rate)}` : "-"}
               </TableCell>
               <TableCell style={{ width: columnWidths.amount, overflow: 'hidden' }} className="text-right font-mono">
-                {item.amount !== undefined ? `$${item.amount.toLocaleString()}` : "-"}
+                {item.amount !== undefined ? `$${formatAmount(item.amount)}` : "-"}
               </TableCell>
             </TableRow>
           ))}

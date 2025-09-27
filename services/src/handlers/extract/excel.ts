@@ -377,8 +377,8 @@ function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
       // Only extract actual line items (not deeper section headers)
       if (hasQuantity || hasUnit) {
         const qty = parseNumber(getCellValue(row, header.qty));
-        const rate = parseNumber(getCellValue(row, header.rate));
-        const amount = parseNumber(getCellValue(row, header.amount));
+        const rate = parseNumber(getCellValue(row, header.rate), true);
+        const amount = parseNumber(getCellValue(row, header.amount), true);
 
         items.push({
           sectionCode: currentSectionCode,
@@ -705,8 +705,8 @@ function extractResponseItems(worksheet: ExcelJS.Worksheet): ParsedResponseItem[
 
       // Only extract items that have quantities, units, or meaningful pricing data
       const qty = parseNumber(getCellValue(row, header.qty));
-      const rate = parseNumber(getCellValue(row, header.rate));
-      const amount = parseNumber(getCellValue(row, header.amount));
+      const rate = parseNumber(getCellValue(row, header.rate), true);
+      const amount = parseNumber(getCellValue(row, header.amount), true);
 
       const hasValidPricingData = (
         Number.isFinite(qty) ||
@@ -777,13 +777,16 @@ function getCellValue(row: ExcelJS.Row, column?: number): string | undefined {
   return String(cell.value ?? "");
 }
 
-function parseNumber(value?: string): number {
+function parseNumber(value?: string, roundToTwoDecimals: boolean = false): number {
   if (!value) {
     return 0;
   }
   const cleaned = value.replace(/[,\s]/g, "");
   const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : 0;
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return roundToTwoDecimals ? Math.round(parsed * 100) / 100 : parsed;
 }
 
 function normaliseMetadata(metadata: Record<string, string>): Record<string, string> {

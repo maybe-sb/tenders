@@ -27,6 +27,7 @@ import { ITTItem, ResponseItem } from "@/types/tenders";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatAmount } from "@/lib/currency";
 
 interface DnDPanelProps {
   ittItems: ITTItem[];
@@ -148,10 +149,10 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
                     <span>Unit: {item.unit}</span>
                   )}
                   {item.rate !== undefined && (
-                    <span>Rate: {item.rate.toLocaleString()}</span>
+                    <span>Rate: ${formatAmount(item.rate)}</span>
                   )}
                   {item.amount !== undefined && (
-                    <span>Amount: {item.amount.toLocaleString()}</span>
+                    <span>Amount: ${formatAmount(item.amount)}</span>
                   )}
                 </div>
               </DraggableCard>
