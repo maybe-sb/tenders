@@ -93,12 +93,36 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
     // Create matching engine and find matches
     const matchingEngine = createMatchingEngine({
       fuzzyThreshold: 0.75,
-      lowConfidenceThreshold: 0.6,
+      lowConfidenceThreshold: 0.3, // TEMPORARILY LOWERED from 0.6 for debugging
       enableFuzzyMatching: true,
       maxSuggestions: 3,
     });
 
+    logger.info("Starting matching process", {
+      ittItemsCount: ittItems.length,
+      unmatchedResponseItemsCount: unmatchedResponseItems.length,
+      sampleIttItem: ittItems[0] ? {
+        itemCode: ittItems[0].itemCode,
+        description: ittItems[0].description
+      } : null,
+      sampleResponseItem: unmatchedResponseItems[0] ? {
+        itemCode: unmatchedResponseItems[0].itemCode,
+        description: unmatchedResponseItems[0].description
+      } : null
+    });
+
     const matchCandidates = matchingEngine.findMatches(ittItems, unmatchedResponseItems);
+
+    logger.info("Matching completed", {
+      candidatesFound: matchCandidates.length,
+      candidates: matchCandidates.map(c => ({
+        ittItemId: c.ittItemId,
+        responseItemId: c.responseItemId,
+        confidence: c.confidence,
+        matchType: c.matchType,
+        reason: c.reason
+      }))
+    });
 
     logger.info("Generated match candidates", {
       projectId,

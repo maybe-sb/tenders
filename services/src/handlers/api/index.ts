@@ -25,7 +25,7 @@ import {
   requestIttUpload,
   requestResponseUpload,
 } from "@/handlers/api/uploads";
-import { createManualMatch, listMatches, triggerAutoMatch, updateMatchStatus } from "@/handlers/api/match";
+import { bulkAcceptMatches, createManualMatch, listMatches, triggerAutoMatch, updateMatchStatus } from "@/handlers/api/match";
 import { generateReport, getAssessment, getReport } from "@/handlers/api/assessment";
 
 interface RouteConfig {
@@ -83,6 +83,11 @@ const routes: RouteConfig[] = [
     method: "POST",
     pattern: /^\/projects\/(?<projectId>[\w-]+)\/match\/manual$/,
     handler: createManualMatch,
+  },
+  {
+    method: "POST",
+    pattern: /^\/projects\/(?<projectId>[\w-]+)\/match\/bulk-accept$/,
+    handler: bulkAcceptMatches,
   },
   {
     method: "GET",

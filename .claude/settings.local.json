@@ -14,7 +14,8 @@
       "Bash(curl:*)",
       "Bash(powershell:*)",
       "Bash(node:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(LOG_GROUP=\"/aws/lambda/Tenders-dev-Api-ApiHandler5E7490E8-m6JBqQHN4uUL\")"
     ],
     "deny": [],
     "ask": []

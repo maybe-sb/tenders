@@ -92,9 +92,9 @@ export const api = {
     request<ResponseItem[]>(`/projects/${projectId}/responses/items`, "GET", undefined, {
       query: { unmatchedOnly: params?.unmatchedOnly },
     }),
-  listMatches: (projectId: string, params?: { status?: MatchStatus | "all" }) =>
+  listMatches: (projectId: string, params?: { status?: MatchStatus | "all"; contractor?: string }) =>
     request<MatchSuggestion[]>(`/projects/${projectId}/match`, "GET", undefined, {
-      query: { status: params?.status },
+      query: { status: params?.status, contractor: params?.contractor },
     }),
   listExceptions: (projectId: string) =>
     request<ExceptionRecord[]>(`/projects/${projectId}/exceptions`, "GET"),
@@ -131,6 +131,10 @@ export const api = {
     projectId: string,
     payload: { matchId: string; status: MatchStatus; comment?: string }
   ) => request<void>(`/projects/${projectId}/match/status`, "POST", payload),
+  bulkAcceptMatches: (
+    projectId: string,
+    payload: { matchIds: string[]; comment?: string }
+  ) => request<{ succeeded: number; failed: number; total: number; failures: Array<{ matchId: string; error: string }> }>(`/projects/${projectId}/match/bulk-accept`, "POST", payload),
   createManualMatch: (
     projectId: string,
     payload: { ittItemId: string; responseItemId: string }

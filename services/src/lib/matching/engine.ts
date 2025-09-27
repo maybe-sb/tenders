@@ -32,7 +32,7 @@ export interface MatchingOptions {
 
 const DEFAULT_OPTIONS: MatchingOptions = {
   fuzzyThreshold: 0.75,
-  lowConfidenceThreshold: 0.6,
+  lowConfidenceThreshold: 0.3, // TEMPORARILY LOWERED from 0.6 for debugging
   enableFuzzyMatching: true,
   maxSuggestions: 3,
 };
@@ -122,15 +122,34 @@ export class MatchingEngine {
     normalizedResponse: NormalizedResponseItem,
     ittItem: NormalizedITTItem
   ): MatchCandidate | null {
+    logger.info("Attempting match", {
+      responseItemId: responseItem.responseItemId,
+      responseDescription: responseItem.description,
+      responseCode: responseItem.itemCode,
+      normalizedResponseCode: normalizedResponse.itemCode,
+      normalizedResponseTokens: normalizedResponse.description.tokens,
+      ittItemId: ittItem.original.ittItemId,
+      ittDescription: ittItem.original.description,
+      ittCode: ittItem.original.itemCode,
+      normalizedIttCode: ittItem.itemCode,
+      normalizedIttTokens: ittItem.description.tokens
+    });
+
     // Stage 1: Exact/Semantic Matching
 
     // 1.1 Exact code match (highest confidence)
     if (normalizedResponse.itemCode && ittItem.itemCode) {
+      logger.info("Checking exact code match", {
+        responseCode: normalizedResponse.itemCode,
+        ittCode: ittItem.itemCode,
+        match: normalizedResponse.itemCode === ittItem.itemCode
+      });
       if (normalizedResponse.itemCode === ittItem.itemCode) {
         const confidence = this.calculateCodeMatchConfidence(
           normalizedResponse,
           ittItem
         );
+        logger.info("Exact code match found", { confidence });
         return {
           ittItemId: ittItem.original.ittItemId,
           responseItemId: responseItem.responseItemId,
@@ -170,14 +189,29 @@ export class MatchingEngine {
       ittItem.description.tokens
     );
 
-    if (jaccardSimilarity >= 0.4) { // Minimum threshold for consideration
+    logger.info("Fuzzy description matching", {
+      jaccardSimilarity,
+      responseTokens: normalizedResponse.description.tokens,
+      ittTokens: ittItem.description.tokens,
+      threshold: 0.4,
+      meetsThreshold: jaccardSimilarity >= 0.4
+    });
+
+    if (jaccardSimilarity >= 0.2) { // TEMPORARILY LOWERED from 0.4 for debugging
       const confidence = this.calculateDescriptionMatchConfidence(
         normalizedResponse,
         ittItem,
         jaccardSimilarity
       );
 
+      logger.info("Calculated fuzzy match confidence", {
+        confidence,
+        lowConfidenceThreshold: this.options.lowConfidenceThreshold,
+        meetsConfidenceThreshold: confidence >= this.options.lowConfidenceThreshold
+      });
+
       if (confidence >= this.options.lowConfidenceThreshold) {
+        logger.info("Fuzzy description match accepted", { confidence, jaccardSimilarity });
         return {
           ittItemId: ittItem.original.ittItemId,
           responseItemId: responseItem.responseItemId,
@@ -186,7 +220,11 @@ export class MatchingEngine {
           matchType: "fuzzy_description",
           reason: `Fuzzy description match (${Math.round(jaccardSimilarity * 100)}% similarity)`
         };
+      } else {
+        logger.info("Fuzzy description match rejected due to low confidence", { confidence, jaccardSimilarity });
       }
+    } else {
+      logger.info("Fuzzy description match rejected due to low Jaccard similarity", { jaccardSimilarity });
     }
 
     // 2.2 Fuzzy code matching using Levenshtein (for short codes)

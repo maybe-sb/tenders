@@ -90,6 +90,7 @@ export class AiStack extends Stack {
       tracing: Tracing.ACTIVE,
       environment: {
         TABLE_NAME: props.table.tableName,
+        UPLOADS_BUCKET: props.uploadsBucket.bucketName,
         ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
       },
     });

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Loader2, Play } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, Play, Check } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { MatchSuggestion, MatchStatus } from "@/types/tenders";
+import { MatchSuggestion, MatchStatus, ContractorSummary } from "@/types/tenders";
 
 interface MatchSuggestionsScreenProps {
   projectId: string;
@@ -30,6 +30,9 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
   const queryClient = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState<MatchStatus | "all">("suggested");
+  const [contractorFilter, setContractorFilter] = useState<string>("all");
+  const [confidenceFilter, setConfidenceFilter] = useState<"100" | "90+" | "80+" | "all">("100");
+  const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
   const [commentDialog, setCommentDialog] = useState<CommentDialogState>({
     isOpen: false,
     suggestion: null,
@@ -37,10 +40,34 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
   });
   const [comment, setComment] = useState("");
 
+  // Fetch project detail for contractors
+  const { data: projectDetail } = useQuery({
+    queryKey: ["project-detail", projectId],
+    queryFn: () => api.getProjectDetail(projectId),
+  });
+
   // Fetch match suggestions
-  const { data: suggestions = [], isLoading, error } = useQuery({
-    queryKey: ["match-suggestions", projectId, statusFilter],
-    queryFn: () => api.listMatches(projectId, { status: statusFilter }),
+  const { data: allSuggestions = [], isLoading, error } = useQuery({
+    queryKey: ["match-suggestions", projectId, statusFilter, contractorFilter],
+    queryFn: () => api.listMatches(projectId, {
+      status: statusFilter,
+      contractor: contractorFilter !== "all" ? contractorFilter : undefined
+    }),
+  });
+
+  // Apply confidence filtering client-side
+  const suggestions = allSuggestions.filter(suggestion => {
+    switch (confidenceFilter) {
+      case "100":
+        return suggestion.confidence >= 1.0;
+      case "90+":
+        return suggestion.confidence >= 0.9;
+      case "80+":
+        return suggestion.confidence >= 0.8;
+      case "all":
+      default:
+        return true;
+    }
   });
 
   // Trigger auto-match mutation
@@ -66,9 +93,32 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       toast.success(variables.status === "accepted" ? "Match accepted" : "Match rejected");
       queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+      setSelectedMatches(prev => {
+        const updated = new Set(prev);
+        updated.delete(variables.matchId);
+        return updated;
+      });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to update match");
+    },
+  });
+
+  // Bulk accept mutation
+  const bulkAcceptMutation = useMutation({
+    mutationFn: ({ matchIds, comment }: { matchIds: string[]; comment?: string }) =>
+      api.bulkAcceptMatches(projectId, { matchIds, comment }),
+    onSuccess: (result) => {
+      toast.success(`${result.succeeded} matches accepted successfully`);
+      if (result.failed > 0) {
+        toast.error(`${result.failed} matches failed to accept`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+      setSelectedMatches(new Set());
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to bulk accept matches");
     },
   });
 
@@ -133,6 +183,52 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
   const suggestedCount = suggestions.filter(s => s.status === "suggested").length;
   const acceptedCount = suggestions.filter(s => s.status === "accepted").length;
   const rejectedCount = suggestions.filter(s => s.status === "rejected").length;
+  const highConfidenceCount = suggestions.filter(s => s.confidence >= 1.0).length;
+
+  const contractors = projectDetail?.contractors || [];
+
+  const handleSelectMatch = (matchId: string, selected: boolean) => {
+    setSelectedMatches(prev => {
+      const updated = new Set(prev);
+      if (selected) {
+        updated.add(matchId);
+      } else {
+        updated.delete(matchId);
+      }
+      return updated;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const selectableMatches = suggestions.filter(s => s.status === "suggested");
+    if (selectedMatches.size === selectableMatches.length) {
+      setSelectedMatches(new Set());
+    } else {
+      setSelectedMatches(new Set(selectableMatches.map(s => s.matchId)));
+    }
+  };
+
+  const handleBulkAccept = () => {
+    if (selectedMatches.size === 0) return;
+
+    bulkAcceptMutation.mutate({
+      matchIds: Array.from(selectedMatches),
+      comment: "Bulk accepted high-confidence matches"
+    });
+  };
+
+  const handleAcceptAll = () => {
+    const acceptableMatches = suggestions
+      .filter(s => s.status === "suggested")
+      .map(s => s.matchId);
+
+    if (acceptableMatches.length === 0) return;
+
+    bulkAcceptMutation.mutate({
+      matchIds: acceptableMatches,
+      comment: "Accepted all visible matches"
+    });
+  };
 
   if (error) {
     return (
@@ -151,31 +247,70 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       {/* Header with stats and actions */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Match Suggestions</h2>
-          <p className="text-muted-foreground">Review and approve suggested matches between ITT and response items</p>
+          <h2 className="text-2xl font-bold">Auto-Match & Review</h2>
+          <p className="text-muted-foreground">Review high-confidence matches and bulk accept obvious suggestions</p>
         </div>
-        <Button
-          onClick={() => autoMatchMutation.mutate()}
-          disabled={autoMatchMutation.isPending}
-          className="gap-2"
-        >
-          {autoMatchMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
+        <div className="flex gap-2">
+          {selectedMatches.size > 0 && (
+            <Button
+              onClick={handleBulkAccept}
+              disabled={bulkAcceptMutation.isPending}
+              className="gap-2 bg-green-600 hover:bg-green-700"
+            >
+              {bulkAcceptMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
+              Accept Selected ({selectedMatches.size})
+            </Button>
           )}
-          Run Auto-Match
-        </Button>
+          {suggestions.filter(s => s.status === "suggested").length > 0 && (
+            <Button
+              onClick={handleAcceptAll}
+              disabled={bulkAcceptMutation.isPending}
+              className="gap-2 bg-green-600 hover:bg-green-700"
+            >
+              {bulkAcceptMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
+              Accept All
+            </Button>
+          )}
+          <Button
+            onClick={() => autoMatchMutation.mutate()}
+            disabled={autoMatchMutation.isPending}
+            className="gap-2"
+            variant="outline"
+          >
+            {autoMatchMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            Run Auto-Match
+          </Button>
+        </div>
       </div>
 
       {/* Statistics */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Total Suggestions</CardTitle>
+            <CardTitle className="text-base">Total Matches</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{suggestions.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-purple-600">Perfect Matches</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{highConfidenceCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -210,22 +345,58 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
           <CardTitle className="text-lg">Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="confidence-filter">Confidence:</Label>
+              <Select
+                value={confidenceFilter}
+                onValueChange={(value: "100" | "90+" | "80+" | "all") => setConfidenceFilter(value)}
+              >
+                <SelectTrigger id="confidence-filter" className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="100">100% Only</SelectItem>
+                  <SelectItem value="90+">90%+</SelectItem>
+                  <SelectItem value="80+">80%+</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="contractor-filter">Contractor:</Label>
+              <Select
+                value={contractorFilter}
+                onValueChange={(value: string) => setContractorFilter(value)}
+              >
+                <SelectTrigger id="contractor-filter" className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Contractors</SelectItem>
+                  {contractors.map(contractor => (
+                    <SelectItem key={contractor.contractorId} value={contractor.contractorId}>
+                      {contractor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center gap-2">
               <Label htmlFor="status-filter">Status:</Label>
               <Select
                 value={statusFilter}
                 onValueChange={(value: MatchStatus | "all") => setStatusFilter(value)}
               >
-                <SelectTrigger id="status-filter" className="w-40">
+                <SelectTrigger id="status-filter" className="w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
                   <SelectItem value="suggested">Suggested</SelectItem>
                   <SelectItem value="accepted">Accepted</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                   <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -252,7 +423,9 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
             </div>
           ) : suggestions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {statusFilter === "all"
+              {confidenceFilter === "100" && suggestions.length === 0 && allSuggestions.length > 0
+                ? "No 100% confidence matches found. Try lowering the confidence filter to see more suggestions."
+                : statusFilter === "all"
                 ? "No match suggestions found. Try running auto-match to generate suggestions."
                 : `No ${statusFilter} suggestions found.`
               }
@@ -261,34 +434,62 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
             <Table>
               <TableHeader>
                 <TableRow>
+                  {statusFilter === "suggested" && (
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        className="rounded"
+                        checked={selectedMatches.size > 0 && selectedMatches.size === suggestions.filter(s => s.status === "suggested").length}
+                        onChange={handleSelectAll}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="w-16">Status</TableHead>
-                  <TableHead>ITT Item</TableHead>
-                  <TableHead>Response Item</TableHead>
-                  <TableHead>Contractor</TableHead>
-                  <TableHead className="w-20">Confidence</TableHead>
+                  <TableHead className="w-1/3">ITT Item</TableHead>
+                  <TableHead className="w-1/3">Response Item</TableHead>
+                  <TableHead className="w-32">Contractor</TableHead>
+                  <TableHead className="w-24">Confidence</TableHead>
                   <TableHead className="w-32">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {suggestions.map((suggestion) => (
-                  <TableRow key={suggestion.matchId}>
+                  <TableRow key={suggestion.matchId} className={selectedMatches.has(suggestion.matchId) ? "bg-blue-50" : ""}>
+                    {statusFilter === "suggested" && (
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={selectedMatches.has(suggestion.matchId)}
+                          onChange={(e) => handleSelectMatch(suggestion.matchId, e.target.checked)}
+                          disabled={suggestion.status !== "suggested"}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       {getStatusBadge(suggestion.status)}
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="font-medium">{suggestion.ittDescription}</div>
+                        <div className="font-medium text-base leading-tight">{suggestion.ittDescription}</div>
                         <div className="text-sm text-muted-foreground">
-                          {suggestion.ittItemId}
+                          ID: {suggestion.ittItemId}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="font-medium">{suggestion.responseDescription}</div>
+                        <div className="font-medium text-base leading-tight">
+                          {suggestion.responseDescription || <span className="text-red-500 italic">No response description</span>}
+                        </div>
                         <div className="text-sm text-muted-foreground">
-                          {suggestion.responseItemCode && (
+                          {suggestion.responseItemCode ? (
                             <span>Code: {suggestion.responseItemCode}</span>
+                          ) : (
+                            <span className="text-gray-400 italic">No code</span>
+                          )}
+                          {suggestion.responseAmount && (
+                            <span className="ml-2">Amount: ${suggestion.responseAmount.toLocaleString()}</span>
                           )}
                         </div>
                       </div>
@@ -297,15 +498,17 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                       <div className="font-medium">{suggestion.contractorName}</div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-2 h-2 rounded-full ${getConfidenceColor(suggestion.confidence)}`}
-                        />
-                        <span className="text-sm font-medium">
-                          {Math.round(suggestion.confidence * 100)}%
-                        </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-3 h-3 rounded-full ${getConfidenceColor(suggestion.confidence)}`}
+                          />
+                          <span className="text-lg font-bold">
+                            {Math.round(suggestion.confidence * 100)}%
+                          </span>
+                        </div>
                         <span className="text-xs text-muted-foreground">
-                          ({getConfidenceLabel(suggestion.confidence)})
+                          {getConfidenceLabel(suggestion.confidence)}
                         </span>
                       </div>
                     </TableCell>
@@ -314,8 +517,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
-                            variant="default"
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700"
                             onClick={() => handleQuickAction(suggestion, "accept")}
                             disabled={updateMatchMutation.isPending}
                           >
@@ -332,9 +534,9 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {suggestion.status === "accepted" ? "Approved" :
-                           suggestion.status === "rejected" ? "Declined" : "Manual"}
+                        <span className="text-sm text-muted-foreground font-medium">
+                          {suggestion.status === "accepted" ? "✅ Accepted" :
+                           suggestion.status === "rejected" ? "❌ Rejected" : "Manual"}
                         </span>
                       )}
                     </TableCell>

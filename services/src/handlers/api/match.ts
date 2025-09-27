@@ -29,6 +29,11 @@ const CREATE_MANUAL_MATCH_SCHEMA = z.object({
   comment: z.string().trim().max(2000).optional().nullable(),
 });
 
+const BULK_ACCEPT_SCHEMA = z.object({
+  matchIds: z.array(z.string().min(1)).min(1).max(100), // Limit to 100 matches per request
+  comment: z.string().trim().max(2000).optional().nullable(),
+});
+
 export async function listMatches(event: ApiEvent, params: Record<string, string>): Promise<APIGatewayProxyStructuredResultV2> {
   const ownerSub = getOwnerSub(event);
   const projectId = getPathParam(params, "projectId");
@@ -41,6 +46,9 @@ export async function listMatches(event: ApiEvent, params: Record<string, string
   const statusParam = getQueryParam(event, "status")?.toLowerCase();
   const statusFilter = STATUS_VALUES.includes(statusParam as MatchEntity["status"]) ? (statusParam as MatchEntity["status"]) : statusParam === "all" ? "all" : undefined;
 
+  const contractorParam = getQueryParam(event, "contractor");
+  const contractorFilter = contractorParam && contractorParam !== "all" ? contractorParam : undefined;
+
   const matches = await fetchProjectMatches(ownerSub, projectId, { status: statusFilter });
   const [ittItems, responseItems, contractors] = await Promise.all([
     listProjectIttItems(ownerSub, projectId),
@@ -52,7 +60,12 @@ export async function listMatches(event: ApiEvent, params: Record<string, string
   const responseMap = new Map(responseItems.map((item) => [item.responseItemId, item]));
   const contractorMap = new Map(contractors.map((contractor) => [contractor.contractorId, contractor]));
 
-  const payload = matches.map((match) => toMatchResponse(match, {
+  // Apply contractor filtering if specified
+  const filteredMatches = contractorFilter
+    ? matches.filter(match => match.contractorId === contractorFilter)
+    : matches;
+
+  const payload = filteredMatches.map((match) => toMatchResponse(match, {
     ittMap,
     responseMap,
     contractorMap,
@@ -175,6 +188,50 @@ export async function createManualMatch(event: ApiEvent, params: Record<string, 
     responseMap: new Map([[responseItem.responseItemId, responseItem]]),
     contractorMap,
   }));
+}
+
+export async function bulkAcceptMatches(event: ApiEvent, params: Record<string, string>): Promise<APIGatewayProxyStructuredResultV2> {
+  const ownerSub = getOwnerSub(event);
+  const projectId = getPathParam(params, "projectId");
+
+  const project = await getProjectItem(ownerSub, projectId);
+  if (!project) {
+    return jsonResponse(404, { message: "Project not found" });
+  }
+
+  const payload = BULK_ACCEPT_SCHEMA.parse(getJsonBody(event));
+
+  // Process matches in parallel
+  const results = await Promise.allSettled(
+    payload.matchIds.map(async (matchId) => {
+      const updated = await updateProjectMatch(ownerSub, projectId, matchId, {
+        status: "accepted",
+        comment: payload.comment,
+      });
+      if (!updated) {
+        throw new Error(`Match ${matchId} not found`);
+      }
+      return { matchId, success: true };
+    })
+  );
+
+  const succeeded = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected").length;
+
+  const failedDetails = results
+    .map((r, index) => ({ result: r, matchId: payload.matchIds[index] }))
+    .filter(({ result }) => result.status === "rejected")
+    .map(({ result, matchId }) => ({
+      matchId,
+      error: result.status === "rejected" ? result.reason?.message || "Unknown error" : "Unknown error",
+    }));
+
+  return jsonResponse(200, {
+    succeeded,
+    failed,
+    total: payload.matchIds.length,
+    failures: failedDetails,
+  });
 }
 
 
