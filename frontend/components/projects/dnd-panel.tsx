@@ -10,7 +10,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { ReactNode } from "react";
+import { ReactNode, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import {
@@ -22,8 +22,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { ITTItem, ResponseItem } from "@/types/tenders";
 import { Button } from "@/components/ui/button";
+import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DnDPanelProps {
@@ -33,8 +35,55 @@ interface DnDPanelProps {
   emptyState?: ReactNode;
 }
 
+// Natural sort function for hierarchical item codes like "1.1.1", "1.1.10", "1.2.1"
+function naturalSort(a: string, b: string): number {
+  const aParts = a.split('.').map(part => {
+    const num = parseInt(part, 10);
+    return isNaN(num) ? part : num;
+  });
+  const bParts = b.split('.').map(part => {
+    const num = parseInt(part, 10);
+    return isNaN(num) ? part : num;
+  });
+
+  const maxLength = Math.max(aParts.length, bParts.length);
+
+  for (let i = 0; i < maxLength; i++) {
+    const aPart = aParts[i] || 0;
+    const bPart = bParts[i] || 0;
+
+    if (typeof aPart === 'number' && typeof bPart === 'number') {
+      if (aPart !== bPart) return aPart - bPart;
+    } else {
+      const comparison = String(aPart).localeCompare(String(bPart));
+      if (comparison !== 0) return comparison;
+    }
+  }
+
+  return 0;
+}
+
 export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }: DnDPanelProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [filterText, setFilterText] = useState("");
+
+  // Filter and sort ITT items
+  const filteredAndSortedIttItems = useMemo(() => {
+    let filtered = ittItems;
+
+    // Apply text filter
+    if (filterText.trim()) {
+      const searchTerm = filterText.toLowerCase().trim();
+      filtered = ittItems.filter(item =>
+        item.itemCode.toLowerCase().includes(searchTerm) ||
+        item.description.toLowerCase().includes(searchTerm) ||
+        item.sectionId.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Sort by item code using natural sorting
+    return [...filtered].sort((a, b) => naturalSort(a.itemCode, b.itemCode));
+  }, [ittItems, filterText]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!event.over || !event.active?.id) return;
@@ -42,6 +91,8 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
     const ittItemId = String(event.over.id);
     onManualMatch(ittItemId, responseItemId);
   };
+
+  const clearFilter = () => setFilterText("");
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -71,6 +122,28 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
           <h3 className="text-lg font-semibold">ITT Items</h3>
           <span className="text-sm text-muted-foreground">Drag response items into an ITT row</span>
         </div>
+
+        {/* Filter Input */}
+        <div className="relative mt-4">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Filter by code, description, or section..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className="pl-9 pr-9"
+          />
+          {filterText && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilter}
+              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <ScrollArea className="mt-4 h-[400px]">
             <Table>
@@ -82,7 +155,7 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ittItems.map((itt) => (
+                {filteredAndSortedIttItems.map((itt) => (
                   <DroppableRow key={itt.ittItemId} id={itt.ittItemId}>
                     <TableCell className="font-medium">{itt.itemCode}</TableCell>
                     <TableCell>

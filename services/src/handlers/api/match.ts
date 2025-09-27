@@ -71,6 +71,10 @@ export async function triggerAutoMatch(event: ApiEvent, params: Record<string, s
   }
 
   const { MATCH_QUEUE_URL } = getEnv();
+  if (!MATCH_QUEUE_URL) {
+    throw new Error("MATCH_QUEUE_URL environment variable is required for auto-matching");
+  }
+
   await sendQueueMessage(MATCH_QUEUE_URL, {
     type: "AUTO_MATCH_REQUEST",
     projectId,

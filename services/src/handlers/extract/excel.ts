@@ -1,4 +1,4 @@
-import type { S3Event } from "aws-lambda";
+import type { SQSEvent, S3Event } from "aws-lambda";
 import ExcelJS from "exceljs";
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 
@@ -20,99 +20,115 @@ const HEADER_SYNONYMS = {
 };
 
 
-export async function handler(event: S3Event) {
-  for (const record of event.Records) {
-    const bucket = record.s3.bucket.name;
-    const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
-
+export async function handler(event: SQSEvent) {
+  for (const sqsRecord of event.Records) {
     try {
-      const head = await s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-      const metadata = normaliseMetadata(head.Metadata ?? {});
+      // Parse S3 event from SQS message body
+      const s3Event: S3Event = JSON.parse(sqsRecord.body);
 
-      const projectId = metadata["project-id"];
-      const ownerSub = metadata["owner-sub"] ?? process.env.DEFAULT_OWNER_SUB ?? "demo-user";
-      const documentType = metadata["document-type"];
-      const source = metadata["source"] ?? "excel";
-      const contractorId = metadata["contractor-id"];
+      // Process each S3 record within the S3 event
+      for (const record of s3Event.Records) {
+        const bucket = record.s3.bucket.name;
+        const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
 
-      if (!projectId || !documentType) {
-        logger.warn("Missing metadata for object; skipping", { bucket, key, metadata });
-        continue;
-      }
+        try {
+          const head = await s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+          const metadata = normaliseMetadata(head.Metadata ?? {});
 
-      if (source !== "excel") {
-        logger.info("Skipping non-Excel source", { bucket, key, source });
-        continue;
-      }
+          const projectId = metadata["project-id"];
+          const ownerSub = metadata["owner-sub"] ?? process.env.DEFAULT_OWNER_SUB ?? "demo-user";
+          const documentType = metadata["document-type"];
+          const source = metadata["source"] ?? "excel";
+          const contractorId = metadata["contractor-id"];
 
-      const document = await findDocumentByKey(ownerSub, projectId, key);
-      if (!document) {
-        logger.warn("Document record not found for uploaded object", { projectId, key });
-        continue;
-      }
+          if (!projectId || !documentType) {
+            logger.warn("Missing metadata for object; skipping", { bucket, key, metadata });
+            continue;
+          }
 
-      const job = await findLatestParseJob(ownerSub, projectId, document.docId);
-      if (job) {
-        await updateParseJob(ownerSub, projectId, job.jobId, {
-          status: "running",
-          startedAt: job.startedAt ?? new Date().toISOString(),
-        });
-      }
+          if (source !== "excel") {
+            logger.info("Skipping non-Excel source", { bucket, key, source });
+            continue;
+          }
 
-      await updateDocumentMetadata(ownerSub, projectId, document.docId, {
-        parseStatus: "parsing",
-      });
+          const document = await findDocumentByKey(ownerSub, projectId, key);
+          if (!document) {
+            logger.warn("Document record not found for uploaded object", { projectId, key });
+            continue;
+          }
 
-      const buffer = await fetchObjectBuffer(bucket, key);
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(buffer);
-      const worksheet = workbook.worksheets[0];
+          const job = await findLatestParseJob(ownerSub, projectId, document.docId);
+          if (job) {
+            await updateParseJob(ownerSub, projectId, job.jobId, {
+              status: "running",
+              startedAt: job.startedAt ?? new Date().toISOString(),
+            });
+          }
 
-      if (!worksheet) {
-        throw new Error("WORKSHEET_NOT_FOUND");
-      }
+          await updateDocumentMetadata(ownerSub, projectId, document.docId, {
+            parseStatus: "parsing",
+          });
 
-      let ingestedCount = 0;
+          const buffer = await fetchObjectBuffer(bucket, key);
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(buffer);
 
-      if (documentType === "itt") {
-        const parsedItems = extractIttItems(worksheet);
-        ingestedCount = await replaceIttItems(ownerSub, projectId, document.docId, parsedItems);
-      } else if (documentType === "response") {
-        const contractor = contractorId ?? document.contractorId;
-        if (!contractor) {
-          throw new Error("CONTRACTOR_ID_MISSING");
+          let ingestedCount = 0;
+
+          if (documentType === "itt") {
+            const worksheet = findIttWorksheet(workbook);
+            if (!worksheet) {
+              throw new Error("ITT_WORKSHEET_NOT_FOUND");
+            }
+            const parsedItems = extractIttItems(worksheet);
+            ingestedCount = await replaceIttItems(ownerSub, projectId, document.docId, parsedItems);
+          } else if (documentType === "response") {
+            const worksheet = workbook.worksheets[0];
+            if (!worksheet) {
+              throw new Error("WORKSHEET_NOT_FOUND");
+            }
+            const contractor = contractorId ?? document.contractorId;
+            if (!contractor) {
+              throw new Error("CONTRACTOR_ID_MISSING");
+            }
+
+            const parsedItems = extractResponseItems(worksheet);
+            ingestedCount = await replaceResponseItems(ownerSub, projectId, contractor, document.docId, parsedItems);
+          } else {
+            logger.info("Unsupported document type for Excel extractor", { documentType });
+          }
+
+          await updateDocumentMetadata(ownerSub, projectId, document.docId, {
+            parseStatus: "parsed",
+            stats: {
+              lineItems: ingestedCount,
+              matched: 0,
+            },
+          });
+
+          if (job) {
+            await updateParseJob(ownerSub, projectId, job.jobId, {
+              status: "succeeded",
+              finishedAt: new Date().toISOString(),
+            });
+          }
+
+          logger.info("Excel extraction completed", { bucket, key, documentType, ingestedCount });
+        } catch (error) {
+          logger.error("Excel extraction failed", {
+            bucket,
+            key,
+            error: error instanceof Error ? error.message : String(error),
+          });
+
+          await handleFailure(record, error as Error);
         }
-
-        const parsedItems = extractResponseItems(worksheet);
-        ingestedCount = await replaceResponseItems(ownerSub, projectId, contractor, document.docId, parsedItems);
-      } else {
-        logger.info("Unsupported document type for Excel extractor", { documentType });
       }
-
-      await updateDocumentMetadata(ownerSub, projectId, document.docId, {
-        parseStatus: "parsed",
-        stats: {
-          lineItems: ingestedCount,
-          matched: 0,
-        },
-      });
-
-      if (job) {
-        await updateParseJob(ownerSub, projectId, job.jobId, {
-          status: "succeeded",
-          finishedAt: new Date().toISOString(),
-        });
-      }
-
-      logger.info("Excel extraction completed", { bucket, key, documentType, ingestedCount });
     } catch (error) {
-      logger.error("Excel extraction failed", {
-        bucket,
-        key,
+      logger.error("Failed to parse SQS message", {
+        messageId: sqsRecord.messageId,
         error: error instanceof Error ? error.message : String(error),
       });
-
-      await handleFailure(record, error as Error);
     }
   }
 }
@@ -187,17 +203,97 @@ async function findLatestParseJob(ownerSub: string, projectId: string, documentI
   return sorted[0] ?? null;
 }
 
+function findIttWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet | null {
+  // First, try to find worksheet with "Bill of Quantities" or "BOQ" in the name
+  const boqSheet = workbook.worksheets.find(sheet =>
+    sheet.name.toLowerCase().includes('bill of quantities') ||
+    sheet.name.toLowerCase().includes('boq')
+  );
+
+  if (boqSheet) {
+    return boqSheet;
+  }
+
+  // Fallback to first worksheet if no BOQ sheet found
+  return workbook.worksheets[0] ?? null;
+}
+
+function findIttHeaders(worksheet: ExcelJS.Worksheet): { header: Record<string, number | undefined>, headerRowNumber: number } {
+  const headerSynonyms = {
+    itemCode: ["item", "item no", "item number", "item code", "ref", "reference"],
+    description: ["description", "item description", "scope", "details", "description of work"],
+    unit: ["unit", "uom"],
+    qty: ["qty", "quantity", "qty."],
+    rate: ["rate", "unit rate", "price"],
+    amount: ["amount", "total", "line total", "value", "cost"],
+    section: ["section", "section name"],
+    sectionCode: ["section code", "section id", "section"],
+  };
+
+  // Check rows 1-15 for potential headers
+  for (let rowNumber = 1; rowNumber <= Math.min(15, worksheet.rowCount); rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    const mapping: Record<string, number | undefined> = {};
+    let foundHeaders = 0;
+
+    row.eachCell((cell, colNumber) => {
+      const headerText = String(cell.value || "").toLowerCase().trim();
+      if (!headerText) return;
+
+      for (const [key, synonyms] of Object.entries(headerSynonyms)) {
+        if (synonyms.some(candidate => headerText === candidate || headerText.includes(candidate))) {
+          mapping[key] = colNumber;
+          foundHeaders++;
+        }
+      }
+    });
+
+    // If we found at least 4 key headers (item, description, qty, unit), this is likely the header row
+    if (foundHeaders >= 4 && mapping.itemCode && mapping.description && mapping.qty) {
+      return { header: mapping, headerRowNumber: rowNumber };
+    }
+  }
+
+  // Fallback to row 1 if no clear header found
+  const fallbackHeader = mapHeaders(worksheet);
+  return { header: fallbackHeader, headerRowNumber: 1 };
+}
+
+function extractSectionFromItemCode(itemCode: string): string {
+  // Extract section from hierarchical item codes like "1.1.1" -> "1.1"
+  const parts = itemCode.split('.');
+  if (parts.length > 1) {
+    // Return all but the last part
+    return parts.slice(0, -1).join('.');
+  }
+  // If no dots, return the item code itself as section
+  return itemCode;
+}
+
 function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
-  const header = mapHeaders(worksheet);
+  const { header, headerRowNumber } = findIttHeaders(worksheet);
   const items: ParsedIttItem[] = [];
 
   worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) {
+    // Skip rows until after the header row
+    if (rowNumber <= headerRowNumber) {
       return;
     }
 
+    const itemCode = getCellValue(row, header.itemCode)?.trim();
     const description = getCellValue(row, header.description)?.trim();
-    if (!description) {
+
+    // Skip rows without meaningful content
+    if (!description || !itemCode) {
+      return;
+    }
+
+    // Skip section headers (items with no quantity/unit typically)
+    const hasQuantity = getCellValue(row, header.qty)?.trim();
+    const hasUnit = getCellValue(row, header.unit)?.trim();
+
+    // Only extract actual line items (not section headers)
+    if (!hasQuantity && !hasUnit) {
       return;
     }
 
@@ -205,15 +301,18 @@ function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
     const rate = parseNumber(getCellValue(row, header.rate));
     const amount = parseNumber(getCellValue(row, header.amount));
 
+    // Extract section information from item code hierarchy (e.g., "1.1.1" -> section "1.1")
+    const sectionCode = extractSectionFromItemCode(itemCode);
+
     items.push({
-      sectionCode: getCellValue(row, header.sectionCode) ?? getCellValue(row, header.section),
-      sectionName: getCellValue(row, header.section),
-      itemCode: getCellValue(row, header.itemCode) ?? "",
+      sectionCode: sectionCode,
+      sectionName: "", // We don't have explicit section names in this format
+      itemCode: itemCode,
       description,
       unit: getCellValue(row, header.unit) ?? "",
       qty,
       rate,
-      amount: amount || qty * rate,
+      amount: amount || (qty && rate ? qty * rate : 0),
     });
   });
 
