@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import { ArrowLeft, FileSpreadsheet, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -180,41 +180,115 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function IttItemsTable({ items }: { items: ITTItem[] }) {
+  const [columnWidths, setColumnWidths] = useState({
+    section: 120,
+    code: 100,
+    description: 200,
+    unit: 80,
+    qty: 90,
+    rate: 100,
+    amount: 110,
+  });
+
+  const tableRef = useRef<HTMLTableElement>(null);
+  const isResizing = useRef<string | null>(null);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent, column: string) => {
+    e.preventDefault();
+    isResizing.current = column;
+    startX.current = e.clientX;
+    startWidth.current = columnWidths[column as keyof typeof columnWidths];
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [columnWidths]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+
+    const diff = e.clientX - startX.current;
+    const newWidth = Math.max(50, startWidth.current + diff);
+
+    setColumnWidths(prev => ({
+      ...prev,
+      [isResizing.current!]: newWidth,
+    }));
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isResizing.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleMouseMove]);
+
+  const ResizeHandle = ({ column }: { column: string }) => (
+    <div
+      className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-blue-500 hover:opacity-50 z-10"
+      onMouseDown={(e) => handleMouseDown(e, column)}
+    />
+  );
+
   return (
     <div className="rounded-md border overflow-auto">
-      <Table>
+      <Table ref={tableRef} style={{ tableLayout: 'fixed', width: '100%' }}>
         <TableHeader>
           <TableRow>
-            <TableHead>Section</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Unit</TableHead>
-            <TableHead className="text-right">Qty</TableHead>
-            <TableHead className="text-right">Rate</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
+            <TableHead style={{ width: columnWidths.section, position: 'relative' }}>
+              Section
+              <ResizeHandle column="section" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.code, position: 'relative' }}>
+              Code
+              <ResizeHandle column="code" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.description, position: 'relative' }}>
+              Description
+              <ResizeHandle column="description" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.unit, position: 'relative' }}>
+              Unit
+              <ResizeHandle column="unit" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.qty, position: 'relative' }} className="text-right">
+              Qty
+              <ResizeHandle column="qty" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.rate, position: 'relative' }} className="text-right">
+              Rate
+              <ResizeHandle column="rate" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.amount, position: 'relative' }} className="text-right">
+              Amount
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((item) => (
             <TableRow key={item.ittItemId}>
-              <TableCell>
+              <TableCell style={{ width: columnWidths.section, overflow: 'hidden' }}>
                 <div className="space-y-1">
-                  <div className="font-medium text-sm">{item.sectionName || item.sectionId}</div>
+                  <div className="font-medium text-sm truncate">{item.sectionName || item.sectionId}</div>
                   {item.subSectionName && (
-                    <div className="text-xs text-muted-foreground">{item.subSectionName}</div>
+                    <div className="text-xs text-muted-foreground truncate">{item.subSectionName}</div>
                   )}
                 </div>
               </TableCell>
-              <TableCell className="font-mono text-sm">{item.itemCode}</TableCell>
-              <TableCell className="max-w-md">
+              <TableCell style={{ width: columnWidths.code, overflow: 'hidden' }} className="font-mono text-sm truncate">{item.itemCode}</TableCell>
+              <TableCell style={{ width: columnWidths.description, overflow: 'hidden' }}>
                 <div className="truncate" title={item.description}>
                   {item.description}
                 </div>
               </TableCell>
-              <TableCell>{item.unit}</TableCell>
-              <TableCell className="text-right font-mono">{item.qty.toLocaleString()}</TableCell>
-              <TableCell className="text-right font-mono">${item.rate.toLocaleString()}</TableCell>
-              <TableCell className="text-right font-mono">${item.amount.toLocaleString()}</TableCell>
+              <TableCell style={{ width: columnWidths.unit, overflow: 'hidden' }} className="truncate">{item.unit}</TableCell>
+              <TableCell style={{ width: columnWidths.qty, overflow: 'hidden' }} className="text-right font-mono">{item.qty.toLocaleString()}</TableCell>
+              <TableCell style={{ width: columnWidths.rate, overflow: 'hidden' }} className="text-right font-mono">${item.rate.toLocaleString()}</TableCell>
+              <TableCell style={{ width: columnWidths.amount, overflow: 'hidden' }} className="text-right font-mono">${item.amount.toLocaleString()}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -224,42 +298,116 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
 }
 
 function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
+  const [columnWidths, setColumnWidths] = useState({
+    section: 120,
+    code: 100,
+    description: 200,
+    unit: 80,
+    qty: 90,
+    rate: 100,
+    amount: 110,
+  });
+
+  const tableRef = useRef<HTMLTableElement>(null);
+  const isResizing = useRef<string | null>(null);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent, column: string) => {
+    e.preventDefault();
+    isResizing.current = column;
+    startX.current = e.clientX;
+    startWidth.current = columnWidths[column as keyof typeof columnWidths];
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [columnWidths]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+
+    const diff = e.clientX - startX.current;
+    const newWidth = Math.max(50, startWidth.current + diff);
+
+    setColumnWidths(prev => ({
+      ...prev,
+      [isResizing.current!]: newWidth,
+    }));
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isResizing.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleMouseMove]);
+
+  const ResizeHandle = ({ column }: { column: string }) => (
+    <div
+      className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-blue-500 hover:opacity-50 z-10"
+      onMouseDown={(e) => handleMouseDown(e, column)}
+    />
+  );
+
   return (
     <div className="rounded-md border overflow-auto">
-      <Table>
+      <Table ref={tableRef} style={{ tableLayout: 'fixed', width: '100%' }}>
         <TableHeader>
           <TableRow>
-            <TableHead>Section</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Unit</TableHead>
-            <TableHead className="text-right">Qty</TableHead>
-            <TableHead className="text-right">Rate</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
+            <TableHead style={{ width: columnWidths.section, position: 'relative' }}>
+              Section
+              <ResizeHandle column="section" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.code, position: 'relative' }}>
+              Code
+              <ResizeHandle column="code" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.description, position: 'relative' }}>
+              Description
+              <ResizeHandle column="description" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.unit, position: 'relative' }}>
+              Unit
+              <ResizeHandle column="unit" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.qty, position: 'relative' }} className="text-right">
+              Qty
+              <ResizeHandle column="qty" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.rate, position: 'relative' }} className="text-right">
+              Rate
+              <ResizeHandle column="rate" />
+            </TableHead>
+            <TableHead style={{ width: columnWidths.amount, position: 'relative' }} className="text-right">
+              Amount
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((item) => (
             <TableRow key={item.responseItemId}>
-              <TableCell>
-                <div className="text-sm">
+              <TableCell style={{ width: columnWidths.section, overflow: 'hidden' }}>
+                <div className="text-sm truncate">
                   {item.sectionGuess || "Unknown"}
                 </div>
               </TableCell>
-              <TableCell className="font-mono text-sm">{item.itemCode || "-"}</TableCell>
-              <TableCell className="max-w-md">
+              <TableCell style={{ width: columnWidths.code, overflow: 'hidden' }} className="font-mono text-sm truncate">{item.itemCode || "-"}</TableCell>
+              <TableCell style={{ width: columnWidths.description, overflow: 'hidden' }}>
                 <div className="truncate" title={item.description}>
                   {item.description}
                 </div>
               </TableCell>
-              <TableCell>{item.unit || "-"}</TableCell>
-              <TableCell className="text-right font-mono">
+              <TableCell style={{ width: columnWidths.unit, overflow: 'hidden' }} className="truncate">{item.unit || "-"}</TableCell>
+              <TableCell style={{ width: columnWidths.qty, overflow: 'hidden' }} className="text-right font-mono">
                 {item.qty !== undefined ? item.qty.toLocaleString() : "-"}
               </TableCell>
-              <TableCell className="text-right font-mono">
+              <TableCell style={{ width: columnWidths.rate, overflow: 'hidden' }} className="text-right font-mono">
                 {item.rate !== undefined ? `$${item.rate.toLocaleString()}` : "-"}
               </TableCell>
-              <TableCell className="text-right font-mono">
+              <TableCell style={{ width: columnWidths.amount, overflow: 'hidden' }} className="text-right font-mono">
                 {item.amount !== undefined ? `$${item.amount.toLocaleString()}` : "-"}
               </TableCell>
             </TableRow>
