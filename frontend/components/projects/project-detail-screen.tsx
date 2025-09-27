@@ -27,6 +27,11 @@ import { uploadToPresignedUrl } from "@/lib/upload";
 import { api } from "@/lib/api";
 import { MatchSuggestion } from "@/types/tenders";
 
+
+
+
+
+
 interface ProjectDetailScreenProps {
   projectId: string;
 }
@@ -47,7 +52,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   const handleIttUpload = async (file: File) => {
     try {
-      const { upload } = await api.requestIttUpload(projectId);
+      const { upload } = await api.requestIttUpload(projectId, { fileName: file.name });
       await uploadToPresignedUrl(upload, file);
       await api.confirmIttUpload(projectId, { key: upload.key, fileName: file.name });
       toast.success("ITT upload received; parsing started");
@@ -64,12 +69,15 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     }
 
     try {
-      const { upload } = await api.requestResponseUpload(projectId, contractorName);
+      const { upload, contractor } = await api.requestResponseUpload(projectId, {
+        contractorName,
+        fileName: file.name,
+      });
       await uploadToPresignedUrl(upload, file);
       await api.confirmResponseUpload(projectId, {
         key: upload.key,
-        contractorId:
-          upload.fields?.contractorId ?? contractorName.toLowerCase().replace(/\s+/g, "-"),
+        contractorId: contractor.contractorId,
+        contractorName: contractor.name,
         fileName: file.name,
       });
       toast.success("Response uploaded; parsing started");
@@ -136,7 +144,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>Currency: {detail.currency}</span>
               <span>Created: {new Date(detail.createdAt).toLocaleDateString()}</span>
               <span>Updated: {new Date(detail.updatedAt).toLocaleString()}</span>
             </div>

@@ -1,0 +1,2 @@
+Redeploy the updated backend (services + CDK) so the API reflects the new default currency handling.
+Redeploy the frontend (Amplify/Next) and smoke test project creation plus the detail/assessment flows to confirm AUD is assumed everywhere without exposing a selector.

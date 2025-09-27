@@ -142,7 +142,7 @@ export interface PresignedUpload {
 }
 
 export interface UploadResponse {
-  document: ResponseDocument;
+  document: DocumentSummary;
   parseJobId: string;
 }
 

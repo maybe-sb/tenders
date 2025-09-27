@@ -1,0 +1,66 @@
+Tenders Project Status - 27 Sep 2025
+===================================
+
+Completed Work
+--------------
+- Frontend scaffolding using Next.js + shadcn UI (projects list, detail, match, assessment views).
+- DynamoDB repositories & list APIs for sections, ITT items, response items, matches, and exceptions wired into project handlers.
+- Excel ingest Lambda parses ITT/response workbooks into Dynamo (sections/items) and updates document parse jobs/stats.
+- Match API endpoints now hydrate suggestions, accept manual matches, and enqueue auto-match jobs.
+- React Query data hooks wired to API client; upload UI flows using presigned URLs.
+- AWS CDK stacks for Auth, Storage (S3 + SQS notifications), Data (DynamoDB), AI (extractor/matcher/report queues), and API (LambdaRestApi with CORS).
+- Core project repository in services layer (create/list/get/update/delete with owner scoping) plus shared Dynamo client/env helpers.
+- API gateway Lambda routing with CORS handling and new project summary endpoints (detail, ITT items, response items, exceptions).
+- Document, contractor, and parse job repositories and mapping utilities for DynamoDB single-table layout.
+- Upload API handlers performing presigned POST generation, document/contractor persistence, and parse job enqueueing.
+- Placeholder extract/match/report Lambdas deployed with CDK wiring.
+- Amplify hosting connected to GitHub; latest build triggered after backend deploy.
+- Unit tests for mappers (Vitest) and lint passes front/back.
+- Recent CDK deploy of `Tenders-dev-Api` with updated Lambda bundle; manual smoke checks on new routes.
+
+Outstanding / Next Steps
+------------------------
+1. DynamoDB Repositories
+   - Backfill write/update flows for matches and exceptions (read/listing helpers now in place; extraction + mutation paths still required).
+   - Update `mapToProjectDetail` to include real documents/sections/contractors stats once repositories exist.
+
+2. API Handlers
+   - Replace remaining placeholders in `/assessment` and `/uploads` confirmation logic with real DynamoDB/S3/Textract pipelines.
+   - Add routes for removing matches, attaching exceptions, generating reports, and any missing endpoints referenced by the frontend client (`frontend/lib/api.ts`).
+   - Introduce robust validation/error handling; ensure 404/403 semantics when ownerSub mismatch occurs.
+
+3. Upload & Extraction Pipeline
+   - Extend ingest flows for non-Excel sources: PDF extractor + Textract integration and artifact persistence.
+   - Populate parse job status updates (start/success/failure) so frontend polling reflects progress.
+   - Confirm correct S3 key conventions and object metadata for SQS triggers.
+
+4. Matching Engine & Assessment
+   - Implement auto-match Lambda (normalization, fuzzy scoring) writing suggestions to DynamoDB and enqueueing manual review items.
+   - Surface auto-match results once the match engine writes suggestions; extend API for match removal/unmatching as needed.
+   - Build assessment aggregation queries (per-section totals, contractor summaries) and PDF report generation (Puppeteer + S3 artifact storage).
+
+5. Authentication & Security
+   - Hook Cognito authorizer/JWT validation into API Gateway (replace `DEFAULT_OWNER_SUB` fallback).
+   - Ensure Amplify frontend retrieves tokens and attaches Authorization headers.
+   - Review IAM policies for least privilege (S3/DynamoDB/SQS/Textract).
+
+6. Frontend Enhancements
+   - Consume new endpoints once backend implemented (list items, matches, exceptions, assessment data).
+   - Add optimistic updates and error states for upload/match actions.
+   - Implement manual matching UI persistence (drag-and-drop) once API ready.
+
+7. Testing & QA
+   - Expand unit coverage for repositories, API handlers, and match logic.
+   - Add integration tests (Vitest or Jest) for key flows.
+   - Plan end-to-end validation: seed test data, run full ITT->response->match->assessment workflow, and verify Amplify deployment.
+
+8. DevOps / Tooling
+   - Consider adding GitHub Actions for lint/test/build + CDK deploy.
+   - Add environment variable management (`.env.local`, secrets) documenting required values.
+   - Monitor Amplify/Cognito configuration and update README with deployment steps.
+
+Notes
+-----
+- API base URL: https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev/
+- Frontend (Amplify) build #8 currently running; monitor with `aws amplify get-job --app-id d239vpwjub5dra --branch-name master --job-id 8`.
+- DynamoDB table: `tenders-dev`; new read helpers expect ITT/response/match/exception entities once extraction/match pipelines persist them.

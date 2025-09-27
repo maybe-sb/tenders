@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aws:*)",
+      "Bash(npx cdk:*)",
+      "Bash(echo:*)",
+      "Bash(export DEPLOY_ENV=dev)",
+      "Bash(export CDK_DEFAULT_ACCOUNT=478567332698)",
+      "Bash(export CDK_DEFAULT_REGION=ap-southeast-2)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

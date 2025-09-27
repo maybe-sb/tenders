@@ -98,26 +98,31 @@ export const api = {
     }),
   listExceptions: (projectId: string) =>
     request<ExceptionRecord[]>(`/projects/${projectId}/exceptions`, "GET"),
-  createProject: (payload: { name: string; currency: string }) =>
+  createProject: (payload: { name: string }) =>
     request<TenderProject>("/projects", "POST", payload),
   updateProject: (
     projectId: string,
-    payload: Partial<{ name: string; status: TenderProject["status"]; currency: string }>
+    payload: Partial<{ name: string; status: TenderProject["status"] }>
   ) => request<TenderProject>(`/projects/${projectId}`, "PATCH", payload),
   deleteProject: (projectId: string) => request<void>(`/projects/${projectId}`, "DELETE"),
-  requestIttUpload: (projectId: string) =>
-    request<{ upload: PresignedUpload }>(`/projects/${projectId}/itt/upload-url`, "POST"),
-  requestResponseUpload: (projectId: string, contractorName: string) =>
-    request<{ upload: PresignedUpload }>(`/projects/${projectId}/responses/upload-url`, "POST", {
-      contractorName,
-    }),
+  requestIttUpload: (projectId: string, payload: { fileName: string }) =>
+    request<{ upload: PresignedUpload }>(`/projects/${projectId}/itt/upload-url`, "POST", payload),
+  requestResponseUpload: (
+    projectId: string,
+    payload: { contractorName: string; fileName: string }
+  ) =>
+    request<{ upload: PresignedUpload; contractor: { contractorId: string; name: string } }>(
+      `/projects/${projectId}/responses/upload-url`,
+      "POST",
+      payload
+    ),
   confirmIttUpload: (
     projectId: string,
     payload: { key: string; fileName: string }
   ) => request<UploadResponse>(`/projects/${projectId}/itt/confirm-upload`, "POST", payload),
   confirmResponseUpload: (
     projectId: string,
-    payload: { key: string; contractorId: string; fileName: string }
+    payload: { key: string; contractorId: string; fileName: string; contractorName?: string }
   ) =>
     request<UploadResponse>(`/projects/${projectId}/responses/confirm-upload`, "POST", payload),
   triggerAutoMatch: (projectId: string) =>

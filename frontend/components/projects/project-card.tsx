@@ -24,10 +24,6 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       </CardHeader>
       <CardContent className="flex flex-wrap gap-6 text-sm text-muted-foreground">
         <div>
-          <p className="font-medium text-foreground">Currency</p>
-          <p>{project.currency}</p>
-        </div>
-        <div>
           <p className="font-medium text-foreground">Contractors</p>
           <p>{project.stats?.contractors ?? 0}</p>
         </div>

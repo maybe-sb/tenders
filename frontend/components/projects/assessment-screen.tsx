@@ -16,6 +16,8 @@ interface AssessmentScreenProps {
   projectId: string;
 }
 
+const DEFAULT_CURRENCY = "AUD";
+
 export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   const { data, isLoading } = useAssessment(projectId);
   const generateReport = useGenerateReport(projectId);
@@ -37,7 +39,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
     return <p className="text-muted-foreground">Loading assessment...</p>;
   }
 
-  const { project, contractors, sections, lineItems, exceptions } = data;
+  const { contractors, sections, lineItems, exceptions } = data;
 
   return (
     <div className="space-y-6">
@@ -102,11 +104,11 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                   </TableCell>
                   {contractors.map((contractor) => (
                     <TableCell key={contractor.contractorId} className="text-right">
-                      {formatCurrency(section.totalsByContractor[contractor.contractorId] ?? 0, project.currency)}
+                      {formatCurrency(section.totalsByContractor[contractor.contractorId] ?? 0)}
                     </TableCell>
                   ))}
                   <TableCell className="text-right">
-                    {formatCurrency(section.totalITTAmount, project.currency)}
+                    {formatCurrency(section.totalITTAmount)}
                   </TableCell>
                   <TableCell className="text-center">{section.exceptionCount}</TableCell>
                 </TableRow>
@@ -153,7 +155,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                             <TableCell>{line.ittItem.description}</TableCell>
                             {contractors.map((contractor) => (
                               <TableCell key={contractor.contractorId} className="text-right">
-                                {renderResponseAmount(line.responses[contractor.contractorId]?.amount, project.currency)}
+                                {renderResponseAmount(line.responses[contractor.contractorId]?.amount)}
                               </TableCell>
                             ))}
                           </TableRow>
@@ -191,7 +193,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                         <TableCell>{exception.contractorName}</TableCell>
                         <TableCell>
                           {typeof exception.amount === "number"
-                            ? formatCurrency(exception.amount, project.currency)
+                            ? formatCurrency(exception.amount)
                             : "-"}
                         </TableCell>
                         <TableCell>{exception.attachedSectionId ?? "Unassigned"}</TableCell>
@@ -208,17 +210,17 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   );
 }
 
-function renderResponseAmount(value: number | null | undefined, currency: string) {
+function renderResponseAmount(value: number | null | undefined) {
   if (typeof value !== "number") {
     return "-";
   }
-  return formatCurrency(value, currency);
+  return formatCurrency(value);
 }
 
-function formatCurrency(value: number, currency: string) {
+function formatCurrency(value: number) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency,
+    currency: DEFAULT_CURRENCY,
     maximumFractionDigits: 2,
   }).format(value);
 }

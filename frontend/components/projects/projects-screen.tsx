@@ -8,17 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateProject, useDeleteProject, useProjects } from "@/hooks/use-projects";
 import { ProjectCard } from "@/components/projects/project-card";
 
-const SUPPORTED_CURRENCIES = ["GBP", "USD", "EUR", "AED"];
-
 export function ProjectsScreen() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [name, setName] = useState("");
-  const [currency, setCurrency] = useState<string>(SUPPORTED_CURRENCIES[0]);
 
   const { data: projects, isLoading } = useProjects();
   const createMutation = useCreateProject();
@@ -26,7 +22,7 @@ export function ProjectsScreen() {
 
   const handleCreate = async () => {
     try {
-      await createMutation.mutateAsync({ name, currency });
+      await createMutation.mutateAsync({ name });
       toast.success("Project created");
       setCreateModalOpen(false);
       setName("");
@@ -100,18 +96,6 @@ export function ProjectsScreen() {
             </div>
             <div className="space-y-2">
               <Label>Currency</Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SUPPORTED_CURRENCIES.map((code) => (
-                    <SelectItem key={code} value={code}>
-                      {code}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>

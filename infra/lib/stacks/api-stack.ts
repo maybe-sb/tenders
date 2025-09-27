@@ -67,3 +67,4 @@ export class ApiStack extends Stack {
     new CfnOutput(this, "ApiUrl", { value: this.api.url ?? "" });
   }
 }
+
