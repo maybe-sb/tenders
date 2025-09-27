@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, AlertTriangle, Loader2, MessageSquare, Play } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, Play } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { MatchSuggestion, MatchStatus } from "@/types/tenders";
 
@@ -27,7 +27,6 @@ interface CommentDialogState {
 }
 
 export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProps) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState<MatchStatus | "all">("suggested");
@@ -48,21 +47,14 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
   const autoMatchMutation = useMutation({
     mutationFn: () => api.triggerAutoMatch(projectId),
     onSuccess: () => {
-      toast({
-        title: "Auto-match started",
-        description: "The system is generating match suggestions. This may take a few moments.",
-      });
+      toast.success("Auto-match started. The system is generating match suggestions.");
       // Refresh suggestions after a delay
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
       }, 3000);
     },
     onError: (error) => {
-      toast({
-        title: "Auto-match failed",
-        description: error instanceof Error ? error.message : "Failed to start auto-matching",
-        variant: "destructive",
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to start auto-matching");
     },
   });
 
@@ -71,19 +63,12 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
     mutationFn: ({ matchId, status, comment }: { matchId: string; status: MatchStatus; comment?: string }) =>
       api.updateMatchStatus(projectId, { matchId, status, comment }),
     onSuccess: (_, variables) => {
-      toast({
-        title: variables.status === "accepted" ? "Match accepted" : "Match rejected",
-        description: "The match status has been updated successfully.",
-      });
+      toast.success(variables.status === "accepted" ? "Match accepted" : "Match rejected");
       queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
     },
     onError: (error) => {
-      toast({
-        title: "Failed to update match",
-        description: error instanceof Error ? error.message : "An error occurred",
-        variant: "destructive",
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to update match");
     },
   });
 
