@@ -286,6 +286,9 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
                       description: match.responseDescription,
                       itemCode: match.responseItemCode,
                       amount: match.responseAmount,
+                      qty: match.responseQty,
+                      rate: match.responseRate,
+                      unit: match.responseUnit,
                     }
                   : undefined,
                 confidence: match.confidence,
