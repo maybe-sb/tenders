@@ -31,7 +31,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
 
   const [statusFilter, setStatusFilter] = useState<MatchFilterOption>("reviewable");
   const [contractorFilter, setContractorFilter] = useState<string>("all");
-  const [confidenceFilter, setConfidenceFilter] = useState<"100" | "90+" | "80+" | "all">("100");
+  const [confidenceFilter, setConfidenceFilter] = useState<"100" | "90+" | "80+" | "all">("80+");
   const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
   const [commentDialog, setCommentDialog] = useState<CommentDialogState>({
     isOpen: false,
@@ -159,6 +159,8 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
           // Could show detailed conflict information in the future
         } else if (errorMessage.includes("Response item is already matched")) {
           toast.error("One or more items are already matched to different requirements");
+        } else if (errorMessage.includes("Invalid request payload")) {
+          toast.error("No valid matches available to accept");
         } else {
           toast.error(errorMessage);
         }
@@ -268,7 +270,14 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       .filter(s => s.status === "suggested")
       .map(s => s.matchId);
 
-    if (acceptableMatches.length === 0) return;
+    if (acceptableMatches.length === 0) {
+      if (confidenceFilter === "100") {
+        toast.info("No suggested matches with 100% confidence. Try lowering the confidence filter to see more matches.");
+      } else {
+        toast.info("No suggested matches available to accept");
+      }
+      return;
+    }
 
     bulkAcceptMutation.mutate({
       matchIds: acceptableMatches,
