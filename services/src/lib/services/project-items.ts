@@ -67,6 +67,9 @@ export async function replaceIttItems(
     const section = await ensureSection(item.sectionCode, item.sectionName);
     await upsertProjectIttItem(ownerSub, projectId, {
       sectionId: section.sectionId,
+      sectionName: item.sectionName,
+      subSectionCode: item.subSectionCode,
+      subSectionName: item.subSectionName,
       itemCode: item.itemCode,
       description: item.description,
       unit: item.unit,

@@ -40,6 +40,9 @@ export interface ITTItemEntity {
   ittItemId: string;
   projectId: string;
   sectionId: string;
+  sectionName?: string;
+  subSectionCode?: string;
+  subSectionName?: string;
   itemCode: string;
   description: string;
   unit: string;

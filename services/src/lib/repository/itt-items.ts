@@ -27,6 +27,9 @@ function mapToIttItemEntity(item: IttItemRecord): ITTItemEntity {
     ittItemId: item.ittItemId,
     projectId: item.projectId,
     sectionId: item.sectionId,
+    sectionName: item.sectionName,
+    subSectionCode: item.subSectionCode,
+    subSectionName: item.subSectionName,
     itemCode: item.itemCode,
     description: item.description,
     unit: item.unit,
@@ -86,6 +89,9 @@ export async function listProjectIttItems(ownerSub: string, projectId: string): 
 export interface UpsertIttItemInput {
   ittItemId?: string;
   sectionId: string;
+  sectionName?: string;
+  subSectionCode?: string;
+  subSectionName?: string;
   itemCode: string;
   description: string;
   unit: string;
@@ -113,6 +119,9 @@ export async function upsertProjectIttItem(
     ittItemId,
     projectId,
     sectionId: input.sectionId,
+    sectionName: input.sectionName,
+    subSectionCode: input.subSectionCode,
+    subSectionName: input.subSectionName,
     itemCode: input.itemCode,
     description: input.description,
     unit: input.unit,

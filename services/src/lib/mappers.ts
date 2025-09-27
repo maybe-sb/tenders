@@ -51,6 +51,9 @@ export function toIttItemResponse(item: ITTItemEntity): IttItemResponse {
   return {
     ittItemId: item.ittItemId,
     sectionId: item.sectionId,
+    sectionName: item.sectionName,
+    subSectionCode: item.subSectionCode,
+    subSectionName: item.subSectionName,
     itemCode: item.itemCode,
     description: item.description,
     unit: item.unit,

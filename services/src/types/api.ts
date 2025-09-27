@@ -3,6 +3,9 @@ import type { MatchEntity } from "@/types/domain";
 export interface IttItemResponse {
   ittItemId: string;
   sectionId: string;
+  sectionName?: string;
+  subSectionCode?: string;
+  subSectionName?: string;
   itemCode: string;
   description: string;
   unit: string;
