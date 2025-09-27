@@ -39,11 +39,14 @@ interface DnDPanelProps {
 function formatHierarchy(itt: ITTItem): string {
   const parts = [];
 
+  // Extract section code from item code (e.g., "5.4.1.13" -> "5")
+  const sectionCode = itt.itemCode.split('.')[0];
+
   // Add section if available
-  if (itt.sectionName) {
-    parts.push(`${itt.sectionId}. ${itt.sectionName}`);
-  } else if (itt.sectionId) {
-    parts.push(`Section: ${itt.sectionId}`);
+  if (itt.sectionName && sectionCode) {
+    parts.push(`${sectionCode}. ${itt.sectionName}`);
+  } else if (itt.sectionName) {
+    parts.push(itt.sectionName);
   }
 
   // Add sub-section if available
@@ -53,13 +56,13 @@ function formatHierarchy(itt: ITTItem): string {
     parts.push(`Sub-section: ${itt.subSectionCode}`);
   }
 
-  // Join with arrow if we have multiple parts, otherwise fallback to original format
+  // Join with arrow if we have multiple parts, otherwise fallback to section code
   if (parts.length > 0) {
     return parts.join(" → ");
   }
 
-  // Fallback to original format if no hierarchy info available
-  return `Section: ${itt.sectionId}`;
+  // Fallback to section code if no hierarchy info available
+  return `Section: ${sectionCode}`;
 }
 
 // Natural sort function for hierarchical item codes like "1.1.1", "1.1.10", "1.2.1"
