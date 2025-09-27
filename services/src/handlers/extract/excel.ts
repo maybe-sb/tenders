@@ -689,8 +689,8 @@ function extractResponseItems(worksheet: ExcelJS.Worksheet): ParsedResponseItem[
       return;
     } else if (hierarchyLevel >= 3 || !itemCode) {
       // Potential line item - check if it has quantities or units
-      const hasQuantity = getCellValue(row, header.qty)?.trim();
-      const hasUnit = getCellValue(row, header.unit)?.trim();
+      const quantityValue = getCellValue(row, header.qty)?.trim() || "";
+      const unitValue = getCellValue(row, header.unit)?.trim() || "";
 
       // Skip rows that look like section headers or totals even without item codes
       const descriptionLower = description.toLowerCase();
@@ -714,7 +714,8 @@ function extractResponseItems(worksheet: ExcelJS.Worksheet): ParsedResponseItem[
         Number.isFinite(amount)
       );
 
-      if ((hasQuantity || hasUnit || hasValidPricingData) && (hierarchyLevel >= 3 || !itemCode)) {
+      // Only include if there's actual content in qty/unit fields or valid pricing data
+      if ((quantityValue.length > 0 || unitValue.length > 0 || hasValidPricingData) && (hierarchyLevel >= 3 || !itemCode)) {
         items.push({
           sectionGuess: currentSectionName || (getCellValue(row, header.section) ?? getCellValue(row, header.sectionCode)),
           itemCode: itemCode ?? undefined,
