@@ -29,7 +29,7 @@ interface CommentDialogState {
 export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProps) {
   const queryClient = useQueryClient();
 
-  const [statusFilter, setStatusFilter] = useState<MatchStatus | "all">("suggested");
+  const [statusFilter, setStatusFilter] = useState<MatchStatus | "all" | "reviewable">("reviewable");
   const [contractorFilter, setContractorFilter] = useState<string>("all");
   const [confidenceFilter, setConfidenceFilter] = useState<"100" | "90+" | "80+" | "all">("100");
   const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
@@ -72,6 +72,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
 
   // Apply confidence filtering client-side
   const suggestions = allSuggestions.filter(suggestion => {
+    // Confidence filtering
     switch (confidenceFilter) {
       case "100":
         return suggestion.confidence >= 1.0;
@@ -471,16 +472,15 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
               <Label htmlFor="status-filter">Status:</Label>
               <Select
                 value={statusFilter}
-                onValueChange={(value: MatchStatus | "all") => setStatusFilter(value)}
+                onValueChange={(value: MatchStatus | "all" | "reviewable") => setStatusFilter(value)}
               >
                 <SelectTrigger id="status-filter" className="w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="reviewable">Reviewable</SelectItem>
                   <SelectItem value="suggested">Suggested</SelectItem>
-                  <SelectItem value="accepted">Accepted</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="manual">Manual</SelectItem>
                   <SelectItem value="all">All</SelectItem>
                 </SelectContent>
               </Select>
@@ -496,6 +496,8 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
           <CardDescription>
             {statusFilter === "all"
               ? `Showing all ${suggestions.length} match suggestions`
+              : statusFilter === "reviewable"
+              ? `Showing ${suggestions.length} reviewable match suggestions (excluding accepted/manual)`
               : `Showing ${suggestions.length} ${statusFilter} match suggestions`
             }
           </CardDescription>

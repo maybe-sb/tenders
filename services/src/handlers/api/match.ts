@@ -44,12 +44,20 @@ export async function listMatches(event: ApiEvent, params: Record<string, string
   }
 
   const statusParam = getQueryParam(event, "status")?.toLowerCase();
-  const statusFilter = STATUS_VALUES.includes(statusParam as MatchEntity["status"]) ? (statusParam as MatchEntity["status"]) : statusParam === "all" ? "all" : undefined;
+  const statusFilter = STATUS_VALUES.includes(statusParam as MatchEntity["status"]) ? (statusParam as MatchEntity["status"]) :
+    statusParam === "all" ? "all" :
+    statusParam === "reviewable" ? "reviewable" : undefined;
 
   const contractorParam = getQueryParam(event, "contractor");
   const contractorFilter = contractorParam && contractorParam !== "all" ? contractorParam : undefined;
 
-  const matches = await fetchProjectMatches(ownerSub, projectId, { status: statusFilter });
+  let matches = await fetchProjectMatches(ownerSub, projectId, { status: statusFilter === "reviewable" ? "all" : statusFilter });
+
+  // Filter out accepted and manual matches for "reviewable" status
+  if (statusFilter === "reviewable") {
+    matches = matches.filter(match => match.status !== "accepted" && match.status !== "manual");
+  }
+
   const [ittItems, responseItems, contractors] = await Promise.all([
     listProjectIttItems(ownerSub, projectId),
     listProjectResponseItems(ownerSub, projectId),

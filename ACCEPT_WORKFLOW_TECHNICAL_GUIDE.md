@@ -16,6 +16,13 @@ This document provides comprehensive technical guidance for the Accept workflow 
    - Multiple contractors can bid on the same ITT requirement
    - The system supports competitive bidding scenarios
 
+### Visibility Rules (Updated)
+
+3. **Accepted/Manual Matches Hidden from Action Interfaces**
+   - Once a response item is accepted or manually matched, it disappears from all actionable interfaces
+   - This prevents confusion and duplicate assignment attempts
+   - Applies to: Auto-Match & Review, Match Review, and Manual Mapping tabs
+
 ### Match Status Lifecycle
 
 ```
@@ -336,6 +343,59 @@ lineItems.forEach(lineItem => {
   totalRequested: 5
 }
 ```
+
+## Interface Visibility Updates
+
+### Status Filter Changes
+
+#### Auto-Match & Review Screen
+- **Default Filter**: Changed from "suggested" to "reviewable"
+- **Available Options**:
+  - "Reviewable" (excludes accepted/manual) - DEFAULT
+  - "Suggested" (only suggested matches)
+  - "Rejected" (only rejected matches)
+  - "All" (includes everything, for debugging)
+- **Removed Options**: "Accepted" and "Manual" (no longer actionable)
+
+#### Match Review Tab
+- **Behavior**: Shows all non-accepted, non-manual matches
+- **Filter Logic**: `match.status !== "accepted" && match.status !== "manual"`
+- **Purpose**: Provides complete review capability while hiding finalized matches
+
+#### Manual Mapping Tab
+- **Unchanged**: Already correctly filters out accepted response items
+- **Filter Logic**: Uses `unmatchedOnly: true` parameter
+
+### Backend API Enhancement
+
+#### New "reviewable" Status Filter
+```typescript
+// services/src/handlers/api/match.ts
+const statusFilter = STATUS_VALUES.includes(statusParam as MatchEntity["status"]) ?
+  (statusParam as MatchEntity["status"]) :
+  statusParam === "all" ? "all" :
+  statusParam === "reviewable" ? "reviewable" : undefined;
+
+// Filter implementation
+if (statusFilter === "reviewable") {
+  matches = matches.filter(match => match.status !== "accepted" && match.status !== "manual");
+}
+```
+
+### Data Flow After Accept
+
+1. **User Accepts Match**: Match status changes to "accepted"
+2. **Auto-Match & Review**: Match disappears from default "reviewable" view
+3. **Match Review Tab**: Match no longer appears in review list
+4. **Manual Mapping**: Response item no longer available for manual matching
+5. **Assessment View**: Accepted match data flows into project assessment calculations
+
+### Consistency Benefits
+
+- **Unified Experience**: All actionable interfaces hide finalized matches
+- **Prevents Confusion**: Users can't accidentally interact with completed assignments
+- **Enforces Business Rules**: System prevents violation of "one response per ITT" rule
+- **Clear Workflow**: Obvious progression from suggestion → review → accept → hide
 
 ## Testing Strategy
 

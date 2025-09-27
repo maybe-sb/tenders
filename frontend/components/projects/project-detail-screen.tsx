@@ -39,7 +39,7 @@ interface ProjectDetailScreenProps {
 
 export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { data: detail, isLoading: detailLoading } = useProjectDetail(projectId);
-  const { data: matches, isLoading: matchesLoading } = useProjectMatches(projectId, "suggested");
+  const { data: matches, isLoading: matchesLoading } = useProjectMatches(projectId, "all");
   const { data: ittItems } = useProjectIttItems(projectId);
   const { data: unmatchedItems } = useUnmatchedResponseItems(projectId);
   const { data: exceptions } = useProjectExceptions(projectId);
@@ -264,20 +264,22 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
         </TabsContent>
         <TabsContent value="matches" className="space-y-4">
           <MatchReviewTable
-            rows={(matches ?? []).map((match) => ({
-              matchId: match.matchId,
-              ittDescription: match.ittDescription,
-              contractorName: match.contractorName,
-              status: match.status,
-              responseItem: match.responseDescription
-                ? {
-                    description: match.responseDescription,
-                    itemCode: match.responseItemCode,
-                    amount: match.responseAmount,
-                  }
-                : undefined,
-              confidence: match.confidence,
-            }))}
+            rows={(matches ?? [])
+              .filter((match) => match.status !== "accepted" && match.status !== "manual")
+              .map((match) => ({
+                matchId: match.matchId,
+                ittDescription: match.ittDescription,
+                contractorName: match.contractorName,
+                status: match.status,
+                responseItem: match.responseDescription
+                  ? {
+                      description: match.responseDescription,
+                      itemCode: match.responseItemCode,
+                      amount: match.responseAmount,
+                    }
+                  : undefined,
+                confidence: match.confidence,
+              }))}
             onAccept={handleAccept}
             onReject={handleReject}
           />
