@@ -83,14 +83,21 @@ export async function handler(event: SQSEvent) {
             const parsedItems = extractIttItems(worksheet);
             ingestedCount = await replaceIttItems(ownerSub, projectId, document.docId, parsedItems);
           } else if (documentType === "response") {
-            const worksheet = workbook.worksheets[0];
+            const worksheet = findResponseWorksheet(workbook);
             if (!worksheet) {
-              throw new Error("WORKSHEET_NOT_FOUND");
+              throw new Error("RESPONSE_WORKSHEET_NOT_FOUND");
             }
             const contractor = contractorId ?? document.contractorId;
             if (!contractor) {
               throw new Error("CONTRACTOR_ID_MISSING");
             }
+
+            logger.info("Processing response document", {
+              documentId: document.docId,
+              contractorId: contractor,
+              worksheetName: worksheet.name,
+              totalWorksheets: workbook.worksheets.length
+            });
 
             const parsedItems = extractResponseItems(worksheet);
             ingestedCount = await replaceResponseItems(ownerSub, projectId, contractor, document.docId, parsedItems);
@@ -392,17 +399,177 @@ function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
   return items;
 }
 
+function findResponseWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet | null {
+  // First, try to find worksheet with common response/pricing terms
+  const responseSheet = workbook.worksheets.find(sheet => {
+    const name = sheet.name.toLowerCase();
+    return name.includes('response') ||
+           name.includes('pricing') ||
+           name.includes('tender') ||
+           name.includes('quote') ||
+           name.includes('prices') ||
+           name.includes('schedule') ||
+           name.includes('form');
+  });
+
+  if (responseSheet) {
+    logger.info("Found response worksheet by name", { worksheetName: responseSheet.name });
+    return responseSheet;
+  }
+
+  // Try to find worksheet with pricing data by scanning for financial columns
+  for (const worksheet of workbook.worksheets) {
+    if (hasResponseContent(worksheet)) {
+      logger.info("Found response worksheet by content analysis", { worksheetName: worksheet.name });
+      return worksheet;
+    }
+  }
+
+  // Fallback to first worksheet if no specific response sheet found
+  logger.info("Using first worksheet as fallback", {
+    worksheetName: workbook.worksheets[0]?.name || "None"
+  });
+  return workbook.worksheets[0] ?? null;
+}
+
+function hasResponseContent(worksheet: ExcelJS.Worksheet): boolean {
+  // Check first 10 rows for signs of pricing content
+  for (let rowNumber = 1; rowNumber <= Math.min(10, worksheet.rowCount); rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    let hasAmount = false;
+    let hasDescription = false;
+
+    row.eachCell((cell) => {
+      const value = String(cell.value || "").toLowerCase();
+      if (value.includes('amount') || value.includes('total') || value.includes('price') || value.includes('rate')) {
+        hasAmount = true;
+      }
+      if (value.includes('description') || value.includes('item') || value.includes('scope')) {
+        hasDescription = true;
+      }
+    });
+
+    if (hasAmount && hasDescription) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function findResponseHeaders(worksheet: ExcelJS.Worksheet): { header: Record<string, number | undefined>, headerRowNumber: number } {
+  const responseHeaderSynonyms = {
+    itemCode: ["item", "item no", "item number", "item code", "ref", "reference", "line", "line no"],
+    description: ["description", "item description", "scope", "details", "work description", "specification"],
+    unit: ["unit", "uom", "each", "ea"],
+    qty: ["qty", "quantity", "qty.", "amount", "no."],
+    rate: ["rate", "unit rate", "price", "unit price", "unit cost"],
+    amount: ["amount", "total", "line total", "value", "total cost", "total price", "extension"],
+    section: ["section", "section name", "trade", "category"],
+    sectionCode: ["section code", "section id", "section", "trade code"],
+  };
+
+  // Check rows 1-15 for potential headers (similar to ITT logic)
+  for (let rowNumber = 1; rowNumber <= Math.min(15, worksheet.rowCount); rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    const mapping: Record<string, number | undefined> = {};
+    let foundHeaders = 0;
+
+    row.eachCell((cell, colNumber) => {
+      const headerText = String(cell.value || "").toLowerCase().trim();
+      if (!headerText) return;
+
+      for (const [key, synonyms] of Object.entries(responseHeaderSynonyms)) {
+        if (synonyms.some(candidate => headerText === candidate || headerText.includes(candidate))) {
+          mapping[key] = colNumber;
+          foundHeaders++;
+        }
+      }
+    });
+
+    // If we found at least 3 key headers, this is likely the header row
+    if (foundHeaders >= 3 && mapping.description) {
+      logger.info("Found response headers", {
+        headerRowNumber: rowNumber,
+        foundHeaders,
+        mapping: Object.keys(mapping)
+      });
+      return { header: mapping, headerRowNumber: rowNumber };
+    }
+  }
+
+  // Fallback to row 1 if no clear header found
+  logger.warn("No clear header row found, using row 1 as fallback");
+  const fallbackHeader = mapResponseHeaders(worksheet);
+  return { header: fallbackHeader, headerRowNumber: 1 };
+}
+
+function mapResponseHeaders(worksheet: ExcelJS.Worksheet): Record<string, number | undefined> {
+  const headerRow = worksheet.getRow(1);
+  const mapping: Record<string, number | undefined> = {};
+
+  const responseHeaderSynonyms = {
+    itemCode: ["item", "item no", "item number", "item code", "ref", "reference", "line", "line no"],
+    description: ["description", "item description", "scope", "details", "work description", "specification"],
+    unit: ["unit", "uom", "each", "ea"],
+    qty: ["qty", "quantity", "qty.", "amount", "no."],
+    rate: ["rate", "unit rate", "price", "unit price", "unit cost"],
+    amount: ["amount", "total", "line total", "value", "total cost", "total price", "extension"],
+    section: ["section", "section name", "trade", "category"],
+    sectionCode: ["section code", "section id", "section", "trade code"],
+  };
+
+  headerRow.eachCell((cell, colNumber) => {
+    const headerText = String(cell.value ?? "").toLowerCase().trim();
+    if (!headerText) {
+      return;
+    }
+
+    for (const [key, synonyms] of Object.entries(responseHeaderSynonyms)) {
+      if (synonyms.some((candidate) => headerText === candidate || headerText.includes(candidate))) {
+        mapping[key] = colNumber;
+      }
+    }
+  });
+
+  return mapping;
+}
+
 function extractResponseItems(worksheet: ExcelJS.Worksheet): ParsedResponseItem[] {
-  const header = mapHeaders(worksheet);
+  const { header, headerRowNumber } = findResponseHeaders(worksheet);
   const items: ParsedResponseItem[] = [];
 
+  logger.info("Starting response item extraction", {
+    worksheetName: worksheet.name,
+    headerRowNumber,
+    totalRows: worksheet.rowCount,
+    headerMapping: Object.keys(header)
+  });
+
+  let extractedCount = 0;
+  let skippedCount = 0;
+
   worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) {
+    // Skip rows until after the header row
+    if (rowNumber <= headerRowNumber) {
       return;
     }
 
     const description = getCellValue(row, header.description)?.trim();
-    if (!description) {
+
+    // Skip rows without meaningful description
+    if (!description || description.length < 3) {
+      skippedCount++;
+      return;
+    }
+
+    // Skip rows that look like section headers or totals
+    const descriptionLower = description.toLowerCase();
+    if (descriptionLower.includes('total') ||
+        descriptionLower.includes('subtotal') ||
+        descriptionLower.includes('section') ||
+        descriptionLower.startsWith('part ') ||
+        descriptionLower.match(/^[0-9]+\.?\s*$/)) {
+      skippedCount++;
       return;
     }
 
@@ -410,15 +577,33 @@ function extractResponseItems(worksheet: ExcelJS.Worksheet): ParsedResponseItem[
     const rate = parseNumber(getCellValue(row, header.rate));
     const amount = parseNumber(getCellValue(row, header.amount));
 
-    items.push({
-      sectionGuess: getCellValue(row, header.section) ?? getCellValue(row, header.sectionCode),
-      itemCode: getCellValue(row, header.itemCode) ?? undefined,
-      description,
-      unit: getCellValue(row, header.unit) ?? undefined,
-      qty: Number.isFinite(qty) ? qty : undefined,
-      rate: Number.isFinite(rate) ? rate : undefined,
-      amount: Number.isFinite(amount) ? amount : undefined,
-    });
+    // For valid response items, we should have at least description and some pricing data
+    const hasValidData = description && (
+      Number.isFinite(qty) ||
+      Number.isFinite(rate) ||
+      Number.isFinite(amount)
+    );
+
+    if (hasValidData) {
+      items.push({
+        sectionGuess: getCellValue(row, header.section) ?? getCellValue(row, header.sectionCode),
+        itemCode: getCellValue(row, header.itemCode) ?? undefined,
+        description,
+        unit: getCellValue(row, header.unit) ?? undefined,
+        qty: Number.isFinite(qty) ? qty : undefined,
+        rate: Number.isFinite(rate) ? rate : undefined,
+        amount: Number.isFinite(amount) ? amount : undefined,
+      });
+      extractedCount++;
+    } else {
+      skippedCount++;
+    }
+  });
+
+  logger.info("Response item extraction completed", {
+    extractedCount,
+    skippedCount,
+    totalProcessedRows: extractedCount + skippedCount
   });
 
   return items;
