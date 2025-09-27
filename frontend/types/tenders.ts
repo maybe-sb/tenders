@@ -63,6 +63,9 @@ export interface SectionSummary {
 export interface ITTItem {
   ittItemId: string;
   sectionId: string;
+  sectionName?: string;
+  subSectionCode?: string;
+  subSectionName?: string;
   itemCode: string;
   description: string;
   unit: string;

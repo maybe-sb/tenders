@@ -35,6 +35,33 @@ interface DnDPanelProps {
   emptyState?: ReactNode;
 }
 
+// Format hierarchical section information for display
+function formatHierarchy(itt: ITTItem): string {
+  const parts = [];
+
+  // Add section if available
+  if (itt.sectionName) {
+    parts.push(`${itt.sectionId}. ${itt.sectionName}`);
+  } else if (itt.sectionId) {
+    parts.push(`Section: ${itt.sectionId}`);
+  }
+
+  // Add sub-section if available
+  if (itt.subSectionName && itt.subSectionCode) {
+    parts.push(`${itt.subSectionCode}. ${itt.subSectionName}`);
+  } else if (itt.subSectionCode) {
+    parts.push(`Sub-section: ${itt.subSectionCode}`);
+  }
+
+  // Join with arrow if we have multiple parts, otherwise fallback to original format
+  if (parts.length > 0) {
+    return parts.join(" → ");
+  }
+
+  // Fallback to original format if no hierarchy info available
+  return `Section: ${itt.sectionId}`;
+}
+
 // Natural sort function for hierarchical item codes like "1.1.1", "1.1.10", "1.2.1"
 function naturalSort(a: string, b: string): number {
   const aParts = a.split('.').map(part => {
@@ -77,7 +104,10 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
       filtered = ittItems.filter(item =>
         item.itemCode.toLowerCase().includes(searchTerm) ||
         item.description.toLowerCase().includes(searchTerm) ||
-        item.sectionId.toLowerCase().includes(searchTerm)
+        item.sectionId.toLowerCase().includes(searchTerm) ||
+        (item.sectionName && item.sectionName.toLowerCase().includes(searchTerm)) ||
+        (item.subSectionCode && item.subSectionCode.toLowerCase().includes(searchTerm)) ||
+        (item.subSectionName && item.subSectionName.toLowerCase().includes(searchTerm))
       );
     }
 
@@ -127,7 +157,7 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
         <div className="relative mt-4">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Filter by code, description, or section..."
+            placeholder="Filter by code, description, section, or sub-section..."
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             className="pl-9 pr-9"
@@ -160,7 +190,9 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
                     <TableCell className="font-medium">{itt.itemCode}</TableCell>
                     <TableCell>
                       <p>{itt.description}</p>
-                      <p className="text-xs text-muted-foreground">Section: {itt.sectionId}</p>
+                      <div className="text-xs text-muted-foreground">
+                        {formatHierarchy(itt)}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">{itt.qty}</TableCell>
                   </DroppableRow>

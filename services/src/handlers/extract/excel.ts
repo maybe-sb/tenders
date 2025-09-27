@@ -270,9 +270,20 @@ function extractSectionFromItemCode(itemCode: string): string {
   return itemCode;
 }
 
-function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
-  const { header, headerRowNumber } = findIttHeaders(worksheet);
-  const items: ParsedIttItem[] = [];
+function getHierarchyLevel(itemCode: string): number {
+  // Determine hierarchy level based on item code structure
+  // Level 1: "1", "2", "3" (sections)
+  // Level 2: "1.1", "1.2", "2.1" (sub-sections)
+  // Level 3+: "1.1.1", "1.1.2", "1.2.1.1" (line items)
+  return itemCode.split('.').length;
+}
+
+function buildHierarchyMap(
+  worksheet: ExcelJS.Worksheet,
+  header: Record<string, number | undefined>,
+  headerRowNumber: number
+): Map<string, string> {
+  const hierarchyMap = new Map<string, string>();
 
   worksheet.eachRow((row, rowNumber) => {
     // Skip rows until after the header row
@@ -288,32 +299,94 @@ function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
       return;
     }
 
-    // Skip section headers (items with no quantity/unit typically)
-    const hasQuantity = getCellValue(row, header.qty)?.trim();
-    const hasUnit = getCellValue(row, header.unit)?.trim();
+    const hierarchyLevel = getHierarchyLevel(itemCode);
 
-    // Only extract actual line items (not section headers)
-    if (!hasQuantity && !hasUnit) {
+    // Only capture section (level 1) and sub-section (level 2) headers
+    if (hierarchyLevel === 1 || hierarchyLevel === 2) {
+      // Check if this is likely a header (no quantities typically)
+      const hasQuantity = getCellValue(row, header.qty)?.trim();
+      const hasUnit = getCellValue(row, header.unit)?.trim();
+
+      // Section/sub-section headers typically don't have quantities
+      if (!hasQuantity && !hasUnit) {
+        hierarchyMap.set(itemCode, description);
+      }
+      // But also capture if it's a clear section/sub-section even with quantities
+      else if (hierarchyLevel <= 2) {
+        // For level 1 and 2, capture the mapping regardless of quantities
+        // This handles cases where sections might have summary quantities
+        hierarchyMap.set(itemCode, description);
+      }
+    }
+  });
+
+  return hierarchyMap;
+}
+
+function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
+  const { header, headerRowNumber } = findIttHeaders(worksheet);
+
+  // Phase 1: Build hierarchy map by scanning all rows for section/sub-section headers
+  const hierarchyMap = buildHierarchyMap(worksheet, header, headerRowNumber);
+
+  // Phase 2: Extract line items with proper section/sub-section context
+  const items: ParsedIttItem[] = [];
+  let currentSectionCode = "";
+  let currentSectionName = "";
+  let currentSubSectionCode = "";
+  let currentSubSectionName = "";
+
+  worksheet.eachRow((row, rowNumber) => {
+    // Skip rows until after the header row
+    if (rowNumber <= headerRowNumber) {
       return;
     }
 
-    const qty = parseNumber(getCellValue(row, header.qty));
-    const rate = parseNumber(getCellValue(row, header.rate));
-    const amount = parseNumber(getCellValue(row, header.amount));
+    const itemCode = getCellValue(row, header.itemCode)?.trim();
+    const description = getCellValue(row, header.description)?.trim();
 
-    // Extract section information from item code hierarchy (e.g., "1.1.1" -> section "1.1")
-    const sectionCode = extractSectionFromItemCode(itemCode);
+    // Skip rows without meaningful content
+    if (!description || !itemCode) {
+      return;
+    }
 
-    items.push({
-      sectionCode: sectionCode,
-      sectionName: "", // We don't have explicit section names in this format
-      itemCode: itemCode,
-      description,
-      unit: getCellValue(row, header.unit) ?? "",
-      qty,
-      rate,
-      amount: amount || (qty && rate ? qty * rate : 0),
-    });
+    const hierarchyLevel = getHierarchyLevel(itemCode);
+
+    if (hierarchyLevel === 1) {
+      // Section header (e.g., "1" -> "Preliminaries")
+      currentSectionCode = itemCode;
+      currentSectionName = hierarchyMap.get(itemCode) || description;
+      currentSubSectionCode = "";
+      currentSubSectionName = "";
+    } else if (hierarchyLevel === 2) {
+      // Sub-section header (e.g., "1.1" -> "Establishment")
+      currentSubSectionCode = itemCode;
+      currentSubSectionName = hierarchyMap.get(itemCode) || description;
+    } else if (hierarchyLevel >= 3) {
+      // Potential line item - check if it has quantities
+      const hasQuantity = getCellValue(row, header.qty)?.trim();
+      const hasUnit = getCellValue(row, header.unit)?.trim();
+
+      // Only extract actual line items (not deeper section headers)
+      if (hasQuantity || hasUnit) {
+        const qty = parseNumber(getCellValue(row, header.qty));
+        const rate = parseNumber(getCellValue(row, header.rate));
+        const amount = parseNumber(getCellValue(row, header.amount));
+
+        items.push({
+          sectionCode: currentSectionCode,
+          sectionName: currentSectionName,
+          subSectionCode: currentSubSectionCode,
+          subSectionName: currentSubSectionName,
+          itemCode: itemCode,
+          description,
+          unit: getCellValue(row, header.unit) ?? "",
+          qty,
+          rate,
+          amount: amount || (qty && rate ? qty * rate : 0),
+        });
+      }
+    }
   });
 
   return items;

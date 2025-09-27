@@ -6,6 +6,8 @@ import type { SectionEntity } from "@/types/domain";
 export interface ParsedIttItem {
   sectionCode?: string;
   sectionName?: string;
+  subSectionCode?: string;
+  subSectionName?: string;
   itemCode: string;
   description: string;
   unit: string;
