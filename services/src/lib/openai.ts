@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import path from "node:path";
+import { File } from "node:buffer";
 import { logger } from "@/lib/logger";
 import {
   OpenAIExcelResponse,
@@ -10,7 +12,6 @@ import {
   MAX_RETRIES,
   RETRY_DELAY_MS,
 } from "@/types/openai";
-import { Readable } from "stream";
 
 // Initialize OpenAI client
 let openaiClient: OpenAI | null = null;
@@ -128,13 +129,14 @@ export async function processExcelWithDirectUpload(
 
       // Upload file to OpenAI
       logger.info("Uploading file to OpenAI");
-      const fileStream = Readable.from(fileBuffer);
+      const mimeType = inferMimeType(filename);
+      const fileUpload = new File([fileBuffer], filename, { type: mimeType });
       const file = await client.files.create({
-        file: fileStream,
-        purpose: "assistants"
+        file: fileUpload,
+        purpose: "assistants",
       });
       fileId = file.id;
-      logger.info("File uploaded successfully", { fileId: file.id, size: file.bytes });
+      logger.info("File uploaded successfully", { fileId: file.id, size: file.bytes, mimeType });
 
       // Create assistant
       logger.info("Creating OpenAI assistant");
@@ -283,6 +285,22 @@ export async function processExcelWithAI(
   return response;
 }
 
+
+function inferMimeType(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  switch (ext) {
+    case ".xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case ".xls":
+      return "application/vnd.ms-excel";
+    case ".csv":
+      return "text/csv";
+    case ".pdf":
+      return "application/pdf";
+    default:
+      return "application/octet-stream";
+  }
+}
 
 // Helper: Calculate cost estimate
 function calculateCost(
