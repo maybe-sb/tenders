@@ -1,5 +1,4 @@
 import type { SQSEvent, S3Event } from "aws-lambda";
-import ExcelJS from "exceljs";
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 
 import { logger } from "@/lib/logger";
@@ -12,7 +11,7 @@ import {
   ParsedIttItem,
   ParsedResponseItem,
 } from "@/lib/services/project-items";
-import { processExcelWithAI } from "@/lib/openai";
+import { processExcelWithDirectUpload } from "@/lib/openai";
 import {
   OpenAIExcelResponse,
   OpenAIResponseItem,
@@ -69,21 +68,20 @@ export async function handler(event: SQSEvent) {
           });
 
           const buffer = await fetchObjectBuffer(bucket, key);
-          const workbook = new ExcelJS.Workbook();
-          await workbook.xlsx.load(buffer);
 
           let ingestedCount = 0;
 
           try {
-            logger.info("Processing Excel with AI", {
+            logger.info("Processing Excel with AI direct upload", {
               documentType,
               contractorId,
-              worksheetCount: workbook.worksheets.length,
+              filename: key.split('/').pop() || 'unknown.xlsx',
             });
 
-            // Process with OpenAI
-            const aiResponse = await processExcelWithAI(
-              workbook,
+            // Process with OpenAI using direct file upload
+            const { response: aiResponse } = await processExcelWithDirectUpload(
+              Buffer.from(buffer),
+              key.split('/').pop() || 'unknown.xlsx',
               documentType as "itt" | "response",
               contractorId ?? document.contractorName
             );

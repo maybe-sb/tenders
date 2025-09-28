@@ -1,10 +1,8 @@
 import OpenAI from "openai";
-import ExcelJS from "exceljs";
 import { logger } from "@/lib/logger";
 import {
   OpenAIExcelResponse,
   OpenAIExcelResponseSchema,
-  ExcelContext,
   OpenAIExtractionError,
   TokenUsage,
   SERVICE_TIER,
@@ -12,6 +10,7 @@ import {
   MAX_RETRIES,
   RETRY_DELAY_MS,
 } from "@/types/openai";
+import { Readable } from "stream";
 
 // Initialize OpenAI client
 let openaiClient: OpenAI | null = null;
@@ -30,176 +29,200 @@ export function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
-// Convert Excel worksheet to structured text format
-export function worksheetToText(
-  worksheet: ExcelJS.Worksheet,
-  maxRows: number = 100
-): { text: string; context: ExcelContext } {
-  const headers: string[] = [];
-  const rows: string[][] = [];
-  let headerRowIndex = 0;
-
-  // Find header row (usually within first 15 rows)
-  for (let i = 1; i <= Math.min(15, worksheet.rowCount); i++) {
-    const row = worksheet.getRow(i);
-    const values = row.values as any[];
-    if (values && values.length > 3) {
-      const nonEmptyCount = values.filter(v => v && String(v).trim()).length;
-      if (nonEmptyCount >= 3) {
-        headerRowIndex = i;
-        values.forEach((val, idx) => {
-          if (val) headers[idx] = String(val).trim();
-        });
-        break;
-      }
-    }
-  }
-
-  // Extract sample rows
-  const startRow = headerRowIndex + 1;
-  const endRow = Math.min(startRow + maxRows, worksheet.rowCount);
-
-  for (let i = startRow; i <= endRow; i++) {
-    const row = worksheet.getRow(i);
-    const values = row.values as any[];
-    if (values && values.some(v => v && String(v).trim())) {
-      const rowData: string[] = [];
-      values.forEach((val, idx) => {
-        rowData[idx] = val ? String(val).trim() : "";
-      });
-      rows.push(rowData);
-    }
-  }
-
-  // Build text representation
-  let text = `Worksheet: ${worksheet.name}\n\n`;
-  text += "Headers:\n";
-  headers.forEach((header, idx) => {
-    if (header) text += `Column ${idx}: ${header}\n`;
-  });
-
-  text += "\nSample Data (first 10 rows):\n";
-  rows.slice(0, 10).forEach((row, rowIdx) => {
-    text += `Row ${rowIdx + 1}:\n`;
-    row.forEach((cell, cellIdx) => {
-      if (cell && headers[cellIdx]) {
-        text += `  ${headers[cellIdx]}: ${cell}\n`;
-      }
-    });
-  });
-
-  const context: ExcelContext = {
-    worksheetName: worksheet.name,
-    totalRows: worksheet.rowCount,
-    headers: headers.filter(Boolean),
-    sampleRows: rows.slice(0, 10),
-  };
-
-  return { text, context };
-}
-
-// Generate prompt for construction/tender document extraction
-export function generateExtractionPrompt(
-  worksheetText: string,
+// Generate extraction prompt for direct file upload
+function generateExtractionPrompt(
+  filename: string,
   documentType: "itt" | "response",
   contractorName?: string
 ): string {
-  const basePrompt = `You are an expert in construction tender documents and bills of quantities.
-Analyze the following Excel worksheet data and extract ALL line items with their details.
+  return `You are an expert in construction tender documents and bills of quantities.
 
-${worksheetText}
+I'm uploading an Excel workbook file: "${filename}"
+
+Your task is to:
+1. ANALYZE the entire workbook to understand the document structure
+2. IDENTIFY which worksheet(s) contain actual line item pricing/quotation data
+3. EXTRACT all line items with their details from the most relevant sections
 
 This is a ${documentType === "itt" ? "Bill of Quantities (ITT)" : "Contractor Response"} document.
 ${contractorName ? `Contractor: ${contractorName}` : ""}
 
-Extract information following these rules:
-1. Identify ALL line items that have quantities, rates, or amounts
-2. Detect section headers (e.g., "1. Preliminaries", "2. Earthworks")
-3. Skip rows that are clearly notes, comments, or totals
-4. Round all monetary values (rate, amount) to 2 decimal places
-5. Recognize construction industry terminology and units (m², m³, kg, hours, etc.)
-6. Handle hierarchical item codes (1.1.1, A.2.3) correctly
-7. For response documents, make intelligent guesses about which section items belong to
+EXTRACTION RULES:
+- Find and extract ALL line items that have quantities, rates, or monetary amounts
+- Identify section headers and hierarchical structures
+- Skip rows that are clearly notes, comments, totals, or headers
+- Round all monetary values to exactly 2 decimal places
+- Recognize construction terminology and units (m², m³, kg, hours, etc.)
+- Handle various item code formats (1.1.1, A.2.3, etc.)
+- Intelligently determine section groupings
 
-Common construction sections include:
-- Preliminaries / General Conditions
-- Earthworks / Site Preparation
-- Concrete Works
-- Masonry / Blockwork
-- Structural Steel
-- Roofing
-- Windows and Doors
-- Finishes
-- Plumbing / Hydraulics
-- Electrical
-- HVAC / Mechanical
+COMMON CONSTRUCTION SECTIONS:
+- Preliminaries / General Conditions / Site Setup
+- Earthworks / Excavation / Site Preparation
+- Concrete Works / Foundations
+- Masonry / Blockwork / Brickwork
+- Structural Steel / Metalwork
+- Roofing / Waterproofing
+- Windows and Doors / Glazing
+- Finishes / Painting / Flooring
+- Plumbing / Hydraulics / Drainage
+- Electrical / Lighting
+- HVAC / Mechanical / Air Conditioning
 
-Return a structured JSON response with all extracted items.`;
+IMPORTANT: Analyze the ENTIRE workbook first, then focus on extracting data from the worksheet(s) that contain actual pricing/line item data. Ignore cover sheets and summaries unless they contain line items.
 
-  return basePrompt;
+Return ONLY a valid JSON response in this exact format:
+{
+  "documentType": "${documentType}",
+  "contractorName": "contractor name if identified",
+  "worksheetAnalyzed": "name of primary worksheet used for extraction",
+  "items": [
+    {
+      "itemCode": "item code or null",
+      "description": "description of work",
+      "unit": "unit of measurement or null",
+      "qty": numeric_quantity_or_null,
+      "rate": numeric_rate_rounded_to_2_decimals_or_null,
+      "amount": numeric_amount_rounded_to_2_decimals_or_null,
+      "sectionGuess": "best guess at section name"
+    }
+  ],
+  "sections": [
+    {
+      "code": "section code",
+      "name": "section name"
+    }
+  ],
+  "metadata": {
+    "totalWorksheets": number_of_worksheets_analyzed,
+    "extractedItems": number_of_items_extracted,
+    "confidence": confidence_score_0_to_1,
+    "warnings": ["any warnings or issues encountered"]
+  }
+}`;
 }
 
-// Call OpenAI API with retry logic
-export async function callOpenAI(
-  prompt: string,
-  model: string = DEFAULT_MODEL
+
+// Process Excel file with OpenAI using direct file upload
+export async function processExcelWithDirectUpload(
+  fileBuffer: Buffer,
+  filename: string,
+  documentType: "itt" | "response",
+  contractorName?: string
 ): Promise<{ response: OpenAIExcelResponse; usage: TokenUsage }> {
   const client = getOpenAIClient();
+  let assistantId: string | null = null;
+  let fileId: string | null = null;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      logger.info("Calling OpenAI API", { model, attempt, serviceTier: SERVICE_TIER });
-
-      const completion = await client.chat.completions.create({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert in construction tender documents. Extract structured data from Excel worksheets accurately."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1, // Low temperature for consistent extraction
-        max_tokens: 4000,
-        // @ts-ignore - service_tier might not be in types yet
-        service_tier: SERVICE_TIER,
+      logger.info("Processing Excel with OpenAI direct upload", {
+        filename,
+        documentType,
+        contractorName,
+        attempt,
+        serviceTier: SERVICE_TIER
       });
 
-      const content = completion.choices[0]?.message?.content;
-      if (!content) {
-        throw new OpenAIExtractionError(
-          "Empty response from OpenAI",
-          "EMPTY_RESPONSE"
-        );
+      // Upload file to OpenAI
+      logger.info("Uploading file to OpenAI");
+      const fileStream = Readable.from(fileBuffer);
+      const file = await client.files.create({
+        file: fileStream,
+        purpose: "assistants"
+      });
+      fileId = file.id;
+      logger.info("File uploaded successfully", { fileId: file.id, size: file.bytes });
+
+      // Create assistant
+      logger.info("Creating OpenAI assistant");
+      const assistant = await client.beta.assistants.create({
+        name: "Construction Document Analyzer",
+        instructions: `You are an expert at analyzing construction tender Excel files.
+
+When given an Excel file, analyze it and extract all line items with pricing information.
+
+Return a JSON response with:
+- contractorName: name if found
+- items: array of line items with itemCode, description, qty, unit, rate, amount
+- totalItems: count of items found
+
+Focus on finding actual line items with quantities and pricing, not headers or totals.`,
+        model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+        tools: [{ type: "code_interpreter" }],
+        tool_resources: {
+          code_interpreter: {
+            file_ids: [file.id]
+          }
+        }
+      });
+      assistantId = assistant.id;
+      logger.info("Assistant created successfully", { assistantId: assistant.id });
+
+      // Create thread
+      logger.info("Creating conversation thread");
+      const thread = await client.beta.threads.create();
+
+      // Add message with extraction prompt
+      await client.beta.threads.messages.create(thread.id, {
+        role: "user",
+        content: generateExtractionPrompt(filename, documentType, contractorName)
+      });
+
+      // Run the assistant
+      logger.info("Starting analysis run");
+      const run = await client.beta.threads.runs.create(thread.id, {
+        assistant_id: assistant.id
+      });
+
+      // Wait for completion
+      let runStatus = run;
+      while (runStatus.status === 'queued' || runStatus.status === 'in_progress') {
+        await sleep(2000);
+        runStatus = await client.beta.threads.runs.retrieve(thread.id, run.id);
+        logger.info("Run status update", { status: runStatus.status });
       }
 
-      // Parse and validate response
-      const parsed = JSON.parse(content);
-      const validated = OpenAIExcelResponseSchema.parse(parsed);
+      if (runStatus.status === 'completed') {
+        // Get the response
+        const messages = await client.beta.threads.messages.list(thread.id);
+        const lastMessage = messages.data[0];
 
-      // Calculate token usage
-      const usage: TokenUsage = {
-        promptTokens: completion.usage?.prompt_tokens || 0,
-        completionTokens: completion.usage?.completion_tokens || 0,
-        totalTokens: completion.usage?.total_tokens || 0,
-        estimatedCost: calculateCost(
-          completion.usage?.prompt_tokens || 0,
-          completion.usage?.completion_tokens || 0,
-          model
-        ),
-      };
+        if (lastMessage.content[0].type === 'text') {
+          const responseText = lastMessage.content[0].text.value;
 
-      logger.info("OpenAI extraction successful", {
-        itemsExtracted: validated.items.length,
-        usage,
-      });
+          // Parse and validate response
+          const parsed = JSON.parse(responseText);
+          const validated = OpenAIExcelResponseSchema.parse(parsed);
 
-      return { response: validated, usage };
+          // Calculate estimated token usage (actual usage not available with assistants)
+          const usage: TokenUsage = {
+            promptTokens: 0, // Not available with assistants API
+            completionTokens: 0, // Not available with assistants API
+            totalTokens: 0, // Not available with assistants API
+            estimatedCost: 0, // Will be calculated separately if needed
+          };
+
+          logger.info("OpenAI extraction successful", {
+            itemsExtracted: validated.items.length,
+            sectionsFound: validated.sections?.length || 0,
+            confidence: validated.metadata.confidence,
+          });
+
+          return { response: validated, usage };
+        } else {
+          throw new OpenAIExtractionError(
+            "Unexpected response format from OpenAI",
+            "INVALID_RESPONSE_FORMAT"
+          );
+        }
+      } else {
+        throw new OpenAIExtractionError(
+          `Run failed with status: ${runStatus.status}. Error: ${runStatus.last_error?.message || 'Unknown error'}`,
+          "RUN_FAILED"
+        );
+      }
     } catch (error) {
       lastError = error as Error;
       logger.warn(`OpenAI attempt ${attempt} failed`, {
@@ -209,7 +232,25 @@ export async function callOpenAI(
       });
 
       if (attempt < MAX_RETRIES) {
-        await sleep(RETRY_DELAY_MS * attempt); // Exponential backoff
+        await sleep(RETRY_DELAY_MS * attempt);
+      }
+    } finally {
+      // Cleanup resources
+      if (assistantId) {
+        try {
+          await client.beta.assistants.del(assistantId);
+          logger.info("Assistant cleaned up", { assistantId });
+        } catch (cleanupError) {
+          logger.warn("Failed to cleanup assistant", { assistantId, error: cleanupError });
+        }
+      }
+      if (fileId) {
+        try {
+          await client.files.del(fileId);
+          logger.info("File cleaned up", { fileId });
+        } catch (cleanupError) {
+          logger.warn("Failed to cleanup file", { fileId, error: cleanupError });
+        }
       }
     }
   }
@@ -221,102 +262,26 @@ export async function callOpenAI(
   );
 }
 
-// Process Excel workbook with OpenAI
+// Legacy function for backward compatibility - now uses direct upload
 export async function processExcelWithAI(
   workbook: ExcelJS.Workbook,
   documentType: "itt" | "response",
   contractorName?: string
 ): Promise<OpenAIExcelResponse> {
-  // Find the most relevant worksheet
-  const worksheet = findRelevantWorksheet(workbook, documentType);
-  if (!worksheet) {
-    throw new OpenAIExtractionError(
-      "No relevant worksheet found",
-      "NO_WORKSHEET"
-    );
-  }
+  // Convert workbook back to buffer for direct upload
+  const buffer = await workbook.xlsx.writeBuffer();
+  const filename = `workbook_${Date.now()}.xlsx`;
 
-  logger.info("Processing worksheet with AI", {
-    worksheetName: worksheet.name,
+  const { response } = await processExcelWithDirectUpload(
+    Buffer.from(buffer),
+    filename,
     documentType,
-    contractorName,
-  });
-
-  // Convert worksheet to text
-  const { text, context } = worksheetToText(worksheet);
-
-  // Generate prompt
-  const prompt = generateExtractionPrompt(text, documentType, contractorName);
-
-  // Call OpenAI
-  const { response, usage } = await callOpenAI(
-    prompt,
-    process.env.OPENAI_MODEL || DEFAULT_MODEL
+    contractorName
   );
-
-  // Log extraction metrics
-  logger.info("AI extraction completed", {
-    worksheetName: worksheet.name,
-    itemsExtracted: response.items.length,
-    sectionsFound: response.sections?.length || 0,
-    confidence: response.metadata.confidence,
-    tokenUsage: usage,
-  });
 
   return response;
 }
 
-// Helper: Find most relevant worksheet
-function findRelevantWorksheet(
-  workbook: ExcelJS.Workbook,
-  documentType: "itt" | "response"
-): ExcelJS.Worksheet | null {
-  // Try to find by name patterns
-  const patterns = documentType === "itt"
-    ? ["boq", "bill", "quantities", "schedule", "itt"]
-    : ["response", "pricing", "tender", "quote", "rates"];
-
-  for (const worksheet of workbook.worksheets) {
-    const nameLower = worksheet.name.toLowerCase();
-    if (patterns.some(pattern => nameLower.includes(pattern))) {
-      return worksheet;
-    }
-  }
-
-  // Check content of first worksheet
-  const firstSheet = workbook.worksheets[0];
-  if (firstSheet && hasRelevantContent(firstSheet)) {
-    return firstSheet;
-  }
-
-  // Fallback to first non-empty worksheet
-  for (const worksheet of workbook.worksheets) {
-    if (worksheet.rowCount > 5) {
-      return worksheet;
-    }
-  }
-
-  return null;
-}
-
-// Helper: Check if worksheet has relevant content
-function hasRelevantContent(worksheet: ExcelJS.Worksheet): boolean {
-  const keywords = ["item", "description", "qty", "quantity", "rate", "amount", "total", "price"];
-
-  // Check first 10 rows for keywords
-  for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
-    const row = worksheet.getRow(i);
-    const values = row.values as any[];
-    if (values) {
-      const text = values.map(v => String(v || "").toLowerCase()).join(" ");
-      if (keywords.some(keyword => text.includes(keyword))) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
 
 // Helper: Calculate cost estimate
 function calculateCost(
