@@ -21,12 +21,34 @@ export const OpenAIExcelResponseSchema = z.object({
     code: z.string().describe("Section code (e.g., '1', '2')"),
     name: z.string().describe("Section name (e.g., 'Preliminaries', 'Earthworks')"),
   })).optional().describe("List of sections found in the document"),
-  metadata: z.object({
-    totalRows: z.number().describe("Total number of rows processed"),
-    extractedItems: z.number().describe("Number of items successfully extracted"),
-    confidence: z.number().min(0).max(1).describe("Confidence score of extraction quality"),
-    warnings: z.array(z.string()).optional().describe("Any warnings or issues encountered"),
-  }),
+  metadata: z
+    .object({
+      totalRows: z
+        .number()
+        .describe("Total number of rows processed")
+        .optional(),
+      totalWorksheets: z
+        .number()
+        .describe("Total number of worksheets analyzed")
+        .optional(),
+      extractedItems: z
+        .number()
+        .describe("Number of items successfully extracted"),
+      confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .describe("Confidence score of extraction quality"),
+      warnings: z
+        .array(z.string())
+        .optional()
+        .describe("Any warnings or issues encountered"),
+    })
+    .refine(
+      (metadata) =>
+        metadata.totalRows !== undefined || metadata.totalWorksheets !== undefined,
+      { message: "Either totalRows or totalWorksheets must be provided" }
+    ),
 });
 
 // TypeScript types derived from Zod schemas

@@ -94,6 +94,7 @@ Return ONLY a valid JSON response in this exact format:
     }
   ],
   "metadata": {
+    "totalRows": total_number_of_rows_processed,
     "totalWorksheets": number_of_worksheets_analyzed,
     "extractedItems": number_of_items_extracted,
     "confidence": confidence_score_0_to_1,
