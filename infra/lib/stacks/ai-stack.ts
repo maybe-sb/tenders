@@ -40,17 +40,22 @@ export class AiStack extends Stack {
       visibilityTimeout: Duration.minutes(15),
     });
 
+    // AI-Enhanced Excel Extractor (replacing the traditional one)
     const excelExtractor = new NodejsFunction(this, "ExcelExtractor", {
-      entry: path.join(__dirname, "..", "..", "..", "services", "src", "handlers", "extract", "excel.ts"),
+      entry: path.join(__dirname, "..", "..", "..", "services", "src", "handlers", "extract", "excel-ai.ts"),
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
-      timeout: Duration.minutes(1),
-      memorySize: 1024,
+      timeout: Duration.minutes(5),
+      memorySize: 2048,
       tracing: Tracing.ACTIVE,
       environment: {
         TABLE_NAME: props.table.tableName,
         UPLOADS_BUCKET: props.uploadsBucket.bucketName,
         ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
+        // IMPORTANT: Set these environment variables in AWS Lambda console or CDK context
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+        OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-5",
+        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "priority",
       },
     });
 
