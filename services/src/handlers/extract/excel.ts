@@ -51,7 +51,7 @@ export async function handler(event: SQSEvent) {
             continue;
           }
 
-          const document = await findDocumentByKey(ownerSub, projectId, key);
+          const document = await findDocumentByKeyWithRetry(ownerSub, projectId, key);
           if (!document) {
             logger.warn("Document record not found for uploaded object", { projectId, key });
             continue;
@@ -195,6 +195,29 @@ async function fetchObjectBuffer(bucket: string, key: string): Promise<Uint8Arra
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+async function findDocumentByKeyWithRetry(
+  ownerSub: string,
+  projectId: string,
+  key: string,
+  attempts = 20,
+  delayMs = 500
+) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const document = await findDocumentByKey(ownerSub, projectId, key);
+    if (document) {
+      return document;
+    }
+    if (attempt < attempts) {
+      await delay(delayMs);
+    }
+  }
+  return null;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function findDocumentByKey(ownerSub: string, projectId: string, key: string) {

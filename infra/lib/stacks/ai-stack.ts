@@ -54,8 +54,8 @@ export class AiStack extends Stack {
         ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
         // IMPORTANT: Set these environment variables in AWS Lambda console or CDK context
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
-        OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-5",
-        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "priority",
+        OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-4.1",
+        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "default",
       },
     });
 
