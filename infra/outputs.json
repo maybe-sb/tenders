@@ -33,7 +33,7 @@
     "MatchQueueUrl": "https://sqs.ap-southeast-2.amazonaws.com/478567332698/tenders-match-dev"
   },
   "Tenders-dev-Api": {
-    "TendersApiEndpoint04DEEAE6": "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev/",
-    "ApiUrl": "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev/"
+    "TendersApiEndpoint04DEEAE6": "https://bueh625ugh.execute-api.ap-southeast-2.amazonaws.com/dev/",
+    "ApiUrl": "https://bueh625ugh.execute-api.ap-southeast-2.amazonaws.com/dev/"
   }
 }

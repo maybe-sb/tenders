@@ -27,7 +27,9 @@ const env = ENV_SCHEMA.safeParse({
 
 const API_BASE_URL = env.success && env.data.NEXT_PUBLIC_API_BASE_URL
   ? env.data.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "")
-  : "http://localhost:4000/api/v1";
+  : (process.env.NODE_ENV === "development"
+      ? "http://localhost:4000/api/v1"
+      : "https://bueh625ugh.execute-api.ap-southeast-2.amazonaws.com/dev");
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 

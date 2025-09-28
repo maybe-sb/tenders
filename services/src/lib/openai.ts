@@ -31,11 +31,22 @@ export function getOpenAIClient(): OpenAI {
 }
 
 // Generate extraction prompt for direct file upload
+
 function generateExtractionPrompt(
   filename: string,
   documentType: "itt" | "response",
   contractorName?: string
 ): string {
+  const docSpecificGuidance = documentType === "itt"
+    ? `ITT SPECIFIC NOTES:
+- ITT schedules often exclude rates and totals. Still output every scope line item that has an item code or description even when pricing columns are blank.
+- If a rate or amount is missing, set it to 0 in the JSON output so downstream systems can ingest the item.
+- Capture section hierarchy information when available, but do not drop an item if the section cannot be determined.`
+    : `CONTRACTOR RESPONSE NOTES:
+- Capture the contractor's quoted rates and totals exactly as provided.
+- Skip only rows that do not contain any pricing information (headers, notes, section totals).
+- Retain quantities, rates, and amounts even when they are zero.`;
+
   return `You are an expert in construction tender documents and bills of quantities.
 
 I'm uploading an Excel workbook file: "${filename}"
@@ -49,26 +60,15 @@ This is a ${documentType === "itt" ? "Bill of Quantities (ITT)" : "Contractor Re
 ${contractorName ? `Contractor: ${contractorName}` : ""}
 
 EXTRACTION RULES:
-- Find and extract ALL line items that have quantities, rates, or monetary amounts
+- Find and extract ALL line items that have scope information, quantities, rates, or monetary amounts
 - Identify section headers and hierarchical structures
 - Skip rows that are clearly notes, comments, totals, or headers
 - Round all monetary values to exactly 2 decimal places
-- Recognize construction terminology and units (m², m³, kg, hours, etc.)
+- Recognize construction terminology and units (m2, m3, kg, hours, etc.)
 - Handle various item code formats (1.1.1, A.2.3, etc.)
 - Intelligently determine section groupings
 
-COMMON CONSTRUCTION SECTIONS:
-- Preliminaries / General Conditions / Site Setup
-- Earthworks / Excavation / Site Preparation
-- Concrete Works / Foundations
-- Masonry / Blockwork / Brickwork
-- Structural Steel / Metalwork
-- Roofing / Waterproofing
-- Windows and Doors / Glazing
-- Finishes / Painting / Flooring
-- Plumbing / Hydraulics / Drainage
-- Electrical / Lighting
-- HVAC / Mechanical / Air Conditioning
+${docSpecificGuidance}
 
 IMPORTANT: Analyze the ENTIRE workbook first, then focus on extracting data from the worksheet(s) that contain actual pricing/line item data. Ignore cover sheets and summaries unless they contain line items.
 
@@ -101,9 +101,39 @@ Return ONLY a valid JSON response in this exact format:
     "confidence": confidence_score_0_to_1,
     "warnings": ["any warnings or issues encountered"]
   }
-}`;
+`;
 }
 
+function generateAssistantInstructions(
+  documentType: "itt" | "response",
+  contractorName?: string
+): string {
+  const contractorContext = contractorName ? `Contractor context: ${contractorName}.
+
+` : "";
+
+  if (documentType === "itt") {
+    return `${contractorContext}You are an expert at analysing construction Bill of Quantities (Invitation to Tender) schedules.
+
+Your responsibilities:
+- Locate the worksheet(s) that contain scope line items.
+- Extract every line item even when pricing columns are blank.
+- Provide quantities and units whenever they appear.
+- Output rate and amount as 0 when the source does not supply pricing.
+- Preserve section hierarchy details when available.
+
+Always return valid JSON that matches the requested schema and never drop rows solely because pricing is missing.`;
+  }
+
+  return `${contractorContext}You are an expert at analysing contractor tender responses.
+
+Your responsibilities:
+- Locate the worksheet(s) that contain the contractor's pricing.
+- Extract line items with quantities, rates, and totals, preserving numeric values exactly.
+- Ignore headers, notes, and subtotal rows that do not contain pricing.
+
+Always return valid JSON that matches the requested schema.`;
+}
 
 // Process Excel file with OpenAI using direct file upload
 export async function processExcelWithDirectUpload(
@@ -145,16 +175,7 @@ export async function processExcelWithDirectUpload(
       logger.info("Creating OpenAI assistant");
       const assistant = await client.beta.assistants.create({
         name: "Construction Document Analyzer",
-        instructions: `You are an expert at analyzing construction tender Excel files.
-
-When given an Excel file, analyze it and extract all line items with pricing information.
-
-Return a JSON response with:
-- contractorName: name if found
-- items: array of line items with itemCode, description, qty, unit, rate, amount
-- totalItems: count of items found
-
-Focus on finding actual line items with quantities and pricing, not headers or totals.`,
+        instructions: generateAssistantInstructions(documentType, contractorName),
         model: model,
         tools: [{ type: "code_interpreter" }],
         tool_resources: {
