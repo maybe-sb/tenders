@@ -15,7 +15,7 @@ export const OpenAIResponseItemSchema = z.object({
 // Schema for the complete OpenAI response
 export const OpenAIExcelResponseSchema = z.object({
   documentType: z.enum(["itt", "response"]).describe("Type of document detected"),
-  contractorName: z.string().optional().describe("Name of contractor if this is a response document"),
+  contractorName: z.string().nullish().describe("Name of contractor if this is a response document"),
   items: z.array(OpenAIResponseItemSchema).describe("List of extracted line items"),
   sections: z.array(z.object({
     code: z.string().describe("Section code (e.g., '1', '2')"),
@@ -110,7 +110,7 @@ export interface TokenUsage {
 }
 
 // Service tier configuration
-export const SERVICE_TIER = "priority" as const;
+export const SERVICE_TIER = "default" as const;
 export const DEFAULT_MODEL = "gpt-4.1" as const;
 export const MAX_RETRIES = 3;
 export const RETRY_DELAY_MS = 1000;

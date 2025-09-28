@@ -119,12 +119,15 @@ export async function processExcelWithDirectUpload(
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
+      const serviceTier = process.env.OPENAI_SERVICE_TIER || SERVICE_TIER;
+
       logger.info("Processing Excel with OpenAI direct upload", {
         filename,
         documentType,
         contractorName,
         attempt,
-        serviceTier: SERVICE_TIER
+        serviceTier,
       });
 
       // Upload file to OpenAI
@@ -152,7 +155,7 @@ Return a JSON response with:
 - totalItems: count of items found
 
 Focus on finding actual line items with quantities and pricing, not headers or totals.`,
-        model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+        model: model,
         tools: [{ type: "code_interpreter" }],
         tool_resources: {
           code_interpreter: {
@@ -193,21 +196,47 @@ Focus on finding actual line items with quantities and pricing, not headers or t
         const lastMessage = messages.data[0];
 
         if (lastMessage.content[0].type === 'text') {
-          const responseText = lastMessage.content[0].text.value;
+          const rawText = lastMessage.content[0].text.value;
+          const jsonPayload = extractJsonFromText(rawText);
 
-          // Parse and validate response
-          const parsed = JSON.parse(responseText);
-          const validated = OpenAIExcelResponseSchema.parse(parsed);
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(jsonPayload);
+          } catch (error) {
+            logger.error('Failed to parse JSON from OpenAI response', {
+              rawTextPreview: rawText?.slice(0, 500),
+            });
+            throw new OpenAIExtractionError(
+              'Failed to parse JSON from OpenAI response',
+              'INVALID_JSON',
+              { rawTextPreview: rawText?.slice(0, 500) }
+            );
+          }
 
-          // Calculate estimated token usage (actual usage not available with assistants)
+          let validated: OpenAIExcelResponse;
+          try {
+            validated = OpenAIExcelResponseSchema.parse(parsed);
+          } catch (error) {
+            const issues =
+              error && typeof error === 'object' && 'issues' in (error as any)
+                ? (error as any).issues
+                : error;
+            logger.error('OpenAI response schema validation failed', { issues });
+            throw new OpenAIExtractionError(
+              'OpenAI response schema validation failed',
+              'INVALID_RESPONSE_SCHEMA',
+              { issues },
+            );
+          }
+
           const usage: TokenUsage = {
-            promptTokens: 0, // Not available with assistants API
-            completionTokens: 0, // Not available with assistants API
-            totalTokens: 0, // Not available with assistants API
-            estimatedCost: 0, // Will be calculated separately if needed
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+            estimatedCost: 0,
           };
 
-          logger.info("OpenAI extraction successful", {
+          logger.info('OpenAI extraction successful', {
             itemsExtracted: validated.items.length,
             sectionsFound: validated.sections?.length || 0,
             confidence: validated.metadata.confidence,
@@ -216,8 +245,8 @@ Focus on finding actual line items with quantities and pricing, not headers or t
           return { response: validated, usage };
         } else {
           throw new OpenAIExtractionError(
-            "Unexpected response format from OpenAI",
-            "INVALID_RESPONSE_FORMAT"
+            'Unexpected response format from OpenAI',
+            'INVALID_RESPONSE_FORMAT'
           );
         }
       } else {
@@ -286,6 +315,30 @@ export async function processExcelWithAI(
 }
 
 
+function extractJsonFromText(text: string): string {
+  if (!text) {
+    return text;
+  }
+
+  const fenceStart = text.indexOf('```');
+  if (fenceStart !== -1) {
+    const afterFence = text.slice(fenceStart + 3);
+    const firstNewline = afterFence.indexOf('\n');
+    const withoutLang = firstNewline !== -1 ? afterFence.slice(firstNewline + 1) : afterFence;
+    const fenceEnd = withoutLang.indexOf('```');
+    if (fenceEnd !== -1) {
+      return withoutLang.slice(0, fenceEnd).trim();
+    }
+  }
+
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return text.slice(firstBrace, lastBrace + 1).trim();
+  }
+
+  return text.trim();
+}
 function inferMimeType(filename: string): string {
   const ext = path.extname(filename).toLowerCase();
   switch (ext) {
@@ -327,3 +380,4 @@ function calculateCost(
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
