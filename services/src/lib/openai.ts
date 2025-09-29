@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import * as XLSX from "xlsx";
 import { logger } from "@/lib/logger";
+import { getEnv } from "@/lib/env";
 import {
   OpenAIExcelResponse,
   OpenAIExcelResponseSchema,
@@ -115,17 +116,25 @@ function workbookToMultiSheetJson(wb: any, options: { maxRowsPerSheet?: number }
 }
 
 // Build Responses API requests based on successful approach
-function buildResponsesAPIRequest(preParsedText: string, documentType: "itt" | "response", contractorName?: string) {
-  return {
-    model: "gpt-5",
-    service_tier: "priority",
-    input: [{
-      role: "user",
-      content: [{
-        type: "input_text",
-        text: `You are an expert construction tender analyst extracting Bill of Quantities (ITT) data.
+interface BuildRequestOptions {
+  preParsedText: string;
+  documentType: "itt" | "response";
+  contractorName?: string;
+  model: string;
+  serviceTier?: string;
+}
 
-CRITICAL REQUIREMENTS:
+function buildTextFormatRequest(options: BuildRequestOptions) {
+  const contractorContext = options.contractorName && options.documentType === "response"
+    ? `Contractor: ${options.contractorName}.\n\n`
+    : "";
+
+  const content = [
+    {
+      type: "input_text",
+      text: `You are an expert construction tender analyst extracting Bill of Quantities (ITT) data.
+
+${contractorContext}CRITICAL REQUIREMENTS:
 1. Analyze ALL worksheets in the provided Excel data
 2. Identify the main "Bill of Quantities" worksheet (may be named "BoQ", "Schedule", "Bill of Quantities", etc.)
 3. Extract EVERY line item that contains work scope - not just samples
@@ -145,18 +154,23 @@ IMPORTANT: Extract EVERY item to resolve the 0 line items issue. Do not limit to
 
 Return ONLY JSON matching the exact schema provided.
 
-${preParsedText}`
-      }]
-    }],
+${options.preParsedText}`,
+    },
+  ];
+
+  return {
+    model: options.model,
+    service_tier: options.serviceTier,
+    input: [{ role: "user", content }],
     text: {
       format: {
         type: "json_schema",
         name: "ITTExtraction",
         strict: true,
-        schema
-      }
-    }
-  };
+        schema,
+      },
+    },
+  } as const;
 }
 
 // Process Excel file with OpenAI using local parsing + Responses API
@@ -168,6 +182,9 @@ export async function processExcelWithDirectUpload(
 ): Promise<{ response: OpenAIExcelResponse; usage: TokenUsage }> {
   const client = getOpenAIClient();
   let lastError: Error | null = null;
+  const { OPENAI_MODEL, OPENAI_SERVICE_TIER } = getEnv();
+  const model = OPENAI_MODEL ?? DEFAULT_MODEL;
+  const serviceTier = OPENAI_SERVICE_TIER ?? SERVICE_TIER;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -197,10 +214,16 @@ export async function processExcelWithDirectUpload(
       logger.info(`Parsed data size: ${(jsonStr.length / 1024).toFixed(1)} KB`);
 
       // Build request for Responses API
-      const req = buildResponsesAPIRequest(preParsedText, documentType, contractorName);
+      const baseOptions: BuildRequestOptions = {
+        preParsedText,
+        documentType,
+        contractorName,
+        model,
+        serviceTier,
+      };
 
-      logger.info("Processing with GPT-5 Responses API");
-      const resp = await client.responses.create(req);
+      logger.info("Processing with GPT Responses API (text.format json_schema payload)", { model, serviceTier });
+      const resp = await client.responses.create(buildTextFormatRequest(baseOptions));
 
       const endTime = Date.now();
       logger.info(`Processing completed in ${(endTime - startTime) / 1000}s`);
@@ -208,6 +231,9 @@ export async function processExcelWithDirectUpload(
       // Extract JSON response
       const out = resp.output_text ?? resp.output?.[0]?.content?.[0]?.text;
       if (!out) {
+        logger.error("No output returned from GPT-5", {
+          fullResponse: JSON.stringify(resp, null, 2)
+        });
         throw new OpenAIExtractionError(
           "No output returned from GPT-5",
           "NO_OUTPUT"
@@ -216,12 +242,22 @@ export async function processExcelWithDirectUpload(
 
       logger.info("Received structured JSON response");
 
+      // Log the full raw response for debugging
+      logger.info("Raw OpenAI response", {
+        rawResponse: out,
+        responseLength: out.length,
+        truncatedResponse: out.slice(0, 2000) // First 2000 chars for logging
+      });
+
       let parsed: unknown;
       try {
-        parsed = JSON.parse(out);
+        // Extract JSON from markdown code blocks if present
+        const cleanedJson = extractJsonFromMarkdown(out);
+        parsed = JSON.parse(cleanedJson);
       } catch (error) {
         logger.error('Failed to parse JSON from OpenAI response', {
           rawTextPreview: out?.slice(0, 500),
+          error: error instanceof Error ? error.message : String(error)
         });
         throw new OpenAIExtractionError(
           'Failed to parse JSON from OpenAI response',
@@ -230,8 +266,19 @@ export async function processExcelWithDirectUpload(
         );
       }
 
+      // Log parsed response for debugging
+      logger.info("Parsed OpenAI response", {
+        parsedResponse: JSON.stringify(parsed, null, 2),
+        itemsCount: parsed && typeof parsed === 'object' && 'items' in parsed ? (parsed as any).items?.length : 'unknown'
+      });
+
       // Transform the response to match our expected schema
       const transformedResponse = transformGPTResponseToSchema(parsed, documentType, contractorName);
+
+      logger.info("Transformed response", {
+        transformedItemsCount: transformedResponse.items?.length || 0,
+        transformedSectionsCount: transformedResponse.sections?.length || 0
+      });
 
       let validated: OpenAIExcelResponse;
       try {
@@ -264,12 +311,14 @@ export async function processExcelWithDirectUpload(
 
       return { response: validated, usage };
 
-    } catch (error) {
-      lastError = error as Error;
+   } catch (error) {
+     lastError = error as Error;
+      const detailed = (error as any)?.response?.data;
       logger.warn(`OpenAI attempt ${attempt} failed`, {
         error: error instanceof Error ? error.message : String(error),
         attempt,
         willRetry: attempt < MAX_RETRIES,
+        diagnostic: detailed ? JSON.stringify(detailed) : undefined,
       });
 
       if (attempt < MAX_RETRIES) {
@@ -287,17 +336,52 @@ export async function processExcelWithDirectUpload(
 
 // Transform GPT response to match our expected schema
 function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "response", contractorName?: string): any {
+  const isItt = documentType === "itt";
+
+  const parseNumeric = (value: unknown): number | undefined => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const cleaned = value.replace(/[,\s]/g, "");
+      if (!cleaned) {
+        return undefined;
+      }
+      const parsed = Number(cleaned);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+  };
+
+  const coerceNumber = (value: unknown, fallback?: number): number | undefined => {
+    const parsed = parseNumeric(value);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+    return fallback;
+  };
+
+  const normaliseString = (value: unknown): string | undefined => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed : undefined;
+    }
+    return undefined;
+  };
+
   return {
     documentType: gptResponse.doc_type || documentType,
     contractorName: gptResponse.contractor_name || contractorName || null,
     worksheetAnalyzed: gptResponse.primary_worksheet || "Unknown",
     items: (gptResponse.items || []).map((item: any) => ({
       itemCode: item.item_code,
-      description: item.description,
-      unit: item.unit,
-      qty: item.quantity,
-      rate: item.rate,
-      amount: item.amount,
+      description: typeof item.description === "string"
+        ? item.description
+        : String(item.description ?? ""),
+      unit: normaliseString(item.unit),
+      qty: coerceNumber(item.quantity, isItt ? 0 : undefined),
+      rate: coerceNumber(item.rate, isItt ? 0 : undefined),
+      amount: coerceNumber(item.amount, isItt ? 0 : undefined),
       sectionGuess: item.section
     })),
     sections: (gptResponse.sections || []).map((section: any) => ({
@@ -344,8 +428,33 @@ export async function processExcelWithAI(
 
 
 
+// Helper: Extract JSON from markdown code blocks
+function extractJsonFromMarkdown(text: string): string {
+  if (!text) return text;
+
+  // Remove markdown code fences
+  const fenceStart = text.indexOf('```');
+  if (fenceStart !== -1) {
+    const afterFence = text.slice(fenceStart + 3);
+    const firstNewline = afterFence.indexOf('\n');
+    const withoutLang = firstNewline !== -1 ? afterFence.slice(firstNewline + 1) : afterFence;
+    const fenceEnd = withoutLang.indexOf('```');
+    if (fenceEnd !== -1) {
+      return withoutLang.slice(0, fenceEnd).trim();
+    }
+  }
+
+  // Find JSON object boundaries
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return text.slice(firstBrace, lastBrace + 1).trim();
+  }
+
+  return text.trim();
+}
+
 // Helper: Sleep function
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
-

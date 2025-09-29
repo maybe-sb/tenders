@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef, useCallback } from "react";
-import { ArrowLeft, FileSpreadsheet, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, AlertTriangle, CheckCircle, Clock, ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
@@ -180,6 +180,8 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+type SortDirection = "asc" | "desc";
+
 function IttItemsTable({ items }: { items: ITTItem[] }) {
   const [columnWidths, setColumnWidths] = useState({
     section: 120,
@@ -189,6 +191,12 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
     qty: 90,
     rate: 100,
     amount: 110,
+  });
+
+  type SortColumn = "section" | "code" | "description" | "unit" | "qty" | "rate" | "amount";
+  const [sortState, setSortState] = useState<{ column: SortColumn | null; direction: SortDirection }>({
+    column: null,
+    direction: "desc",
   });
 
   const tableRef = useRef<HTMLTableElement>(null);
@@ -235,42 +243,106 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
     />
   );
 
+  const handleSort = (column: SortColumn) => {
+    setSortState((prev) =>
+      prev.column === column
+        ? { column, direction: prev.direction === "desc" ? "asc" : "desc" }
+        : { column, direction: "desc" }
+    );
+  };
+
+  const getSortValue = (item: ITTItem, column: SortColumn) => {
+    switch (column) {
+      case "section":
+        return (item.sectionName || item.sectionId || "").toLowerCase();
+      case "code":
+        return item.itemCode?.toLowerCase() ?? "";
+      case "description":
+        return item.description?.toLowerCase() ?? "";
+      case "unit":
+        return item.unit?.toLowerCase() ?? "";
+      case "qty":
+        return item.qty ?? 0;
+      case "rate":
+        return item.rate ?? 0;
+      case "amount":
+        return item.amount ?? 0;
+      default:
+        return "";
+    }
+  };
+
+  const sortedItems = useMemo(() => {
+    if (!sortState.column) {
+      return items;
+    }
+
+    const directionMultiplier = sortState.direction === "asc" ? 1 : -1;
+    const column = sortState.column;
+
+    return [...items].sort((a, b) => {
+      const aValue = getSortValue(a, column);
+      const bValue = getSortValue(b, column);
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return (aValue - bValue) * directionMultiplier;
+      }
+
+      return String(aValue).localeCompare(String(bValue)) * directionMultiplier;
+    });
+  }, [items, sortState]);
+
+  const SortButton = ({ column, label }: { column: SortColumn; label: string }) => {
+    const isActive = sortState.column === column;
+    const Icon = !isActive ? ArrowUpDown : sortState.direction === "desc" ? ArrowDown : ArrowUp;
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(column)}
+        className="flex w-full items-center justify-between gap-1 text-left"
+      >
+        <span>{label}</span>
+        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+    );
+  };
+
   return (
     <div className="rounded-md border overflow-auto">
       <Table ref={tableRef} style={{ tableLayout: 'fixed', width: '100%' }}>
         <TableHeader>
           <TableRow>
             <TableHead style={{ width: columnWidths.section, position: 'relative' }}>
-              Section
+              <SortButton column="section" label="Section" />
               <ResizeHandle column="section" />
             </TableHead>
             <TableHead style={{ width: columnWidths.code, position: 'relative' }}>
-              Code
+              <SortButton column="code" label="Code" />
               <ResizeHandle column="code" />
             </TableHead>
             <TableHead style={{ width: columnWidths.description, position: 'relative' }}>
-              Description
+              <SortButton column="description" label="Description" />
               <ResizeHandle column="description" />
             </TableHead>
             <TableHead style={{ width: columnWidths.unit, position: 'relative' }}>
-              Unit
+              <SortButton column="unit" label="Unit" />
               <ResizeHandle column="unit" />
             </TableHead>
             <TableHead style={{ width: columnWidths.qty, position: 'relative' }} className="text-right">
-              Qty
+              <SortButton column="qty" label="Qty" />
               <ResizeHandle column="qty" />
             </TableHead>
             <TableHead style={{ width: columnWidths.rate, position: 'relative' }} className="text-right">
-              Rate
+              <SortButton column="rate" label="Rate" />
               <ResizeHandle column="rate" />
             </TableHead>
             <TableHead style={{ width: columnWidths.amount, position: 'relative' }} className="text-right">
-              Amount
+              <SortButton column="amount" label="Amount" />
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.map((item) => (
+          {sortedItems.map((item) => (
             <TableRow key={item.ittItemId}>
               <TableCell style={{ width: columnWidths.section, overflow: 'hidden' }}>
                 <div className="space-y-1">
@@ -286,7 +358,7 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
                   {item.description}
                 </div>
               </TableCell>
-              <TableCell style={{ width: columnWidths.unit, overflow: 'hidden' }} className="truncate">{item.unit}</TableCell>
+              <TableCell style={{ width: columnWidths.unit, overflow: 'hidden' }} className="truncate">{item.unit ?? "-"}</TableCell>
               <TableCell style={{ width: columnWidths.qty, overflow: 'hidden' }} className="text-right font-mono">{item.qty.toLocaleString()}</TableCell>
               <TableCell style={{ width: columnWidths.rate, overflow: 'hidden' }} className="text-right font-mono">${formatAmount(item.rate)}</TableCell>
               <TableCell style={{ width: columnWidths.amount, overflow: 'hidden' }} className="text-right font-mono">${formatAmount(item.amount)}</TableCell>
@@ -309,6 +381,12 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
     amount: 110,
   });
 
+  type SortColumn = "section" | "code" | "description" | "unit" | "qty" | "rate" | "amount";
+  const [sortState, setSortState] = useState<{ column: SortColumn | null; direction: SortDirection }>({
+    column: null,
+    direction: "desc",
+  });
+
   const tableRef = useRef<HTMLTableElement>(null);
   const isResizing = useRef<string | null>(null);
   const startX = useRef(0);
@@ -353,42 +431,106 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
     />
   );
 
+  const handleSort = (column: SortColumn) => {
+    setSortState((prev) =>
+      prev.column === column
+        ? { column, direction: prev.direction === "desc" ? "asc" : "desc" }
+        : { column, direction: "desc" }
+    );
+  };
+
+  const getSortValue = (item: ResponseItem, column: SortColumn) => {
+    switch (column) {
+      case "section":
+        return (item.sectionGuess || "").toLowerCase();
+      case "code":
+        return (item.itemCode || "").toLowerCase();
+      case "description":
+        return item.description?.toLowerCase() ?? "";
+      case "unit":
+        return (item.unit || "").toLowerCase();
+      case "qty":
+        return item.qty ?? 0;
+      case "rate":
+        return item.rate ?? 0;
+      case "amount":
+        return item.amount ?? 0;
+      default:
+        return "";
+    }
+  };
+
+  const sortedItems = useMemo(() => {
+    if (!sortState.column) {
+      return items;
+    }
+
+    const directionMultiplier = sortState.direction === "asc" ? 1 : -1;
+    const column = sortState.column;
+
+    return [...items].sort((a, b) => {
+      const aValue = getSortValue(a, column);
+      const bValue = getSortValue(b, column);
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return (aValue - bValue) * directionMultiplier;
+      }
+
+      return String(aValue).localeCompare(String(bValue)) * directionMultiplier;
+    });
+  }, [items, sortState]);
+
+  const SortButton = ({ column, label }: { column: SortColumn; label: string }) => {
+    const isActive = sortState.column === column;
+    const Icon = !isActive ? ArrowUpDown : sortState.direction === "desc" ? ArrowDown : ArrowUp;
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(column)}
+        className="flex w-full items-center justify-between gap-1 text-left"
+      >
+        <span>{label}</span>
+        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+    );
+  };
+
   return (
     <div className="rounded-md border overflow-auto">
       <Table ref={tableRef} style={{ tableLayout: 'fixed', width: '100%' }}>
         <TableHeader>
           <TableRow>
             <TableHead style={{ width: columnWidths.section, position: 'relative' }}>
-              Section
+              <SortButton column="section" label="Section" />
               <ResizeHandle column="section" />
             </TableHead>
             <TableHead style={{ width: columnWidths.code, position: 'relative' }}>
-              Code
+              <SortButton column="code" label="Code" />
               <ResizeHandle column="code" />
             </TableHead>
             <TableHead style={{ width: columnWidths.description, position: 'relative' }}>
-              Description
+              <SortButton column="description" label="Description" />
               <ResizeHandle column="description" />
             </TableHead>
             <TableHead style={{ width: columnWidths.unit, position: 'relative' }}>
-              Unit
+              <SortButton column="unit" label="Unit" />
               <ResizeHandle column="unit" />
             </TableHead>
             <TableHead style={{ width: columnWidths.qty, position: 'relative' }} className="text-right">
-              Qty
+              <SortButton column="qty" label="Qty" />
               <ResizeHandle column="qty" />
             </TableHead>
             <TableHead style={{ width: columnWidths.rate, position: 'relative' }} className="text-right">
-              Rate
+              <SortButton column="rate" label="Rate" />
               <ResizeHandle column="rate" />
             </TableHead>
             <TableHead style={{ width: columnWidths.amount, position: 'relative' }} className="text-right">
-              Amount
+              <SortButton column="amount" label="Amount" />
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.map((item) => (
+          {sortedItems.map((item) => (
             <TableRow key={item.responseItemId}>
               <TableCell style={{ width: columnWidths.section, overflow: 'hidden' }}>
                 <div className="text-sm truncate">
@@ -401,7 +543,7 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
                   {item.description}
                 </div>
               </TableCell>
-              <TableCell style={{ width: columnWidths.unit, overflow: 'hidden' }} className="truncate">{item.unit || "-"}</TableCell>
+              <TableCell style={{ width: columnWidths.unit, overflow: 'hidden' }} className="truncate">{item.unit ?? "-"}</TableCell>
               <TableCell style={{ width: columnWidths.qty, overflow: 'hidden' }} className="text-right font-mono">
                 {item.qty !== undefined ? item.qty.toLocaleString() : "-"}
               </TableCell>

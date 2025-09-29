@@ -110,7 +110,7 @@ export interface TokenUsage {
 }
 
 // Service tier configuration
-export const SERVICE_TIER = "default" as const;
+export const SERVICE_TIER = "priority" as const;
 export const DEFAULT_MODEL = "gpt-4.1" as const;
-export const MAX_RETRIES = 3;
+export const MAX_RETRIES = 1;
 export const RETRY_DELAY_MS = 1000;
