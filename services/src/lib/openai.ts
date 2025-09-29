@@ -361,6 +361,14 @@ function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "r
     return fallback;
   };
 
+  const coerceConfidence = (value: unknown): number => {
+    const parsed = parseNumeric(value);
+    if (parsed === undefined) {
+      return 0;
+    }
+    return Math.min(1, Math.max(0, parsed));
+  };
+
   const normaliseString = (value: unknown): string | undefined => {
     if (typeof value === "string") {
       const trimmed = value.trim();
@@ -389,11 +397,13 @@ function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "r
       name: section.name
     })),
     metadata: {
-      totalRows: gptResponse.metadata?.total_items || 0,
-      totalWorksheets: gptResponse.metadata?.total_worksheets || 0,
+      totalRows: coerceNumber(gptResponse.metadata?.total_items),
+      totalWorksheets: coerceNumber(gptResponse.metadata?.total_worksheets),
       extractedItems: gptResponse.items?.length || 0,
-      confidence: gptResponse.metadata?.confidence || 0,
-      warnings: gptResponse.metadata?.warnings || []
+      confidence: coerceConfidence(gptResponse.metadata?.confidence),
+      warnings: Array.isArray(gptResponse.metadata?.warnings)
+        ? gptResponse.metadata?.warnings
+        : [],
     }
   };
 }
