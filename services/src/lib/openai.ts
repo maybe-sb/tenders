@@ -1,6 +1,5 @@
 import OpenAI from "openai";
-import path from "node:path";
-import { File } from "node:buffer";
+import * as XLSX from "xlsx";
 import { logger } from "@/lib/logger";
 import {
   OpenAIExcelResponse,
@@ -30,112 +29,137 @@ export function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
-// Generate extraction prompt for direct file upload
-
-function generateExtractionPrompt(
-  filename: string,
-  documentType: "itt" | "response",
-  contractorName?: string
-): string {
-  const docSpecificGuidance = documentType === "itt"
-    ? `ITT SPECIFIC NOTES:
-- ITT schedules often exclude rates and totals. Still output every scope line item that has an item code or description even when pricing columns are blank.
-- If a rate or amount is missing, set it to 0 in the JSON output so downstream systems can ingest the item.
-- Capture section hierarchy information when available, but do not drop an item if the section cannot be determined.`
-    : `CONTRACTOR RESPONSE NOTES:
-- Capture the contractor's quoted rates and totals exactly as provided.
-- Skip only rows that do not contain any pricing information (headers, notes, section totals).
-- Retain quantities, rates, and amounts even when they are zero.`;
-
-  return `You are an expert in construction tender documents and bills of quantities.
-
-I'm uploading an Excel workbook file: "${filename}"
-
-Your task is to:
-1. ANALYZE the entire workbook to understand the document structure
-2. IDENTIFY which worksheet(s) contain actual line item pricing/quotation data
-3. EXTRACT all line items with their details from the most relevant sections
-
-This is a ${documentType === "itt" ? "Bill of Quantities (ITT)" : "Contractor Response"} document.
-${contractorName ? `Contractor: ${contractorName}` : ""}
-
-EXTRACTION RULES:
-- Find and extract ALL line items that have scope information, quantities, rates, or monetary amounts
-- Identify section headers and hierarchical structures
-- Skip rows that are clearly notes, comments, totals, or headers
-- Round all monetary values to exactly 2 decimal places
-- Recognize construction terminology and units (m2, m3, kg, hours, etc.)
-- Handle various item code formats (1.1.1, A.2.3, etc.)
-- Intelligently determine section groupings
-
-${docSpecificGuidance}
-
-IMPORTANT: Analyze the ENTIRE workbook first, then focus on extracting data from the worksheet(s) that contain actual pricing/line item data. Ignore cover sheets and summaries unless they contain line items.
-
-Return ONLY a valid JSON response in this exact format:
-{
-  "documentType": "${documentType}",
-  "contractorName": "contractor name if identified",
-  "worksheetAnalyzed": "name of primary worksheet used for extraction",
-  "items": [
-    {
-      "itemCode": "item code or null",
-      "description": "description of work",
-      "unit": "unit of measurement or null",
-      "qty": numeric_quantity_or_null,
-      "rate": numeric_rate_rounded_to_2_decimals_or_null,
-      "amount": numeric_amount_rounded_to_2_decimals_or_null,
-      "sectionGuess": "best guess at section name"
+// ITT-specific strict JSON Schema based on successful extraction
+const schema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    doc_type: { type: "string", enum: ["itt", "response", "tender"] },
+    primary_worksheet: { type: "string" },
+    contractor_name: { type: ["string", "null"] },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          item_code: { type: ["string", "null"] },
+          description: { type: "string" },
+          unit: { type: ["string", "null"] },
+          quantity: { type: ["number", "null"] },
+          rate: { type: ["number", "null"] },
+          amount: { type: ["number", "null"] },
+          section: { type: ["string", "null"] }
+        },
+        required: ["item_code", "description", "unit", "quantity", "rate", "amount", "section"]
+      }
+    },
+    sections: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          code: { type: "string" },
+          name: { type: "string" }
+        },
+        required: ["code", "name"]
+      }
+    },
+    metadata: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        total_items: { type: "integer" },
+        total_worksheets: { type: "integer" },
+        confidence: { type: "number", minimum: 0, maximum: 1 },
+        warnings: { type: "array", items: { type: "string" } }
+      },
+      required: ["total_items", "total_worksheets", "confidence", "warnings"]
     }
-  ],
-  "sections": [
-    {
-      "code": "section code",
-      "name": "section name"
-    }
-  ],
-  "metadata": {
-    "totalRows": total_number_of_rows_processed,
-    "totalWorksheets": number_of_worksheets_analyzed,
-    "extractedItems": number_of_items_extracted,
-    "confidence": confidence_score_0_to_1,
-    "warnings": ["any warnings or issues encountered"]
-  }
-`;
+  },
+  required: ["doc_type", "primary_worksheet", "contractor_name", "items", "sections", "metadata"]
+};
+
+// Helpers for XLSX → compact JSON text across ALL sheets
+function normalizeHeader(key: any): string {
+  return String(key)
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^\w]/g, "")
+    .toLowerCase();
 }
 
-function generateAssistantInstructions(
-  documentType: "itt" | "response",
-  contractorName?: string
-): string {
-  const contractorContext = contractorName ? `Contractor context: ${contractorName}.
-
-` : "";
-
-  if (documentType === "itt") {
-    return `${contractorContext}You are an expert at analysing construction Bill of Quantities (Invitation to Tender) schedules.
-
-Your responsibilities:
-- Locate the worksheet(s) that contain scope line items.
-- Extract every line item even when pricing columns are blank.
-- Provide quantities and units whenever they appear.
-- Output rate and amount as 0 when the source does not supply pricing.
-- Preserve section hierarchy details when available.
-
-Always return valid JSON that matches the requested schema and never drop rows solely because pricing is missing.`;
-  }
-
-  return `${contractorContext}You are an expert at analysing contractor tender responses.
-
-Your responsibilities:
-- Locate the worksheet(s) that contain the contractor's pricing.
-- Extract line items with quantities, rates, and totals, preserving numeric values exactly.
-- Ignore headers, notes, and subtotal rows that do not contain pricing.
-
-Always return valid JSON that matches the requested schema.`;
+function sheetToJsonLimited(ws: any, options: { maxRowsPerSheet?: number } = {}): any[] {
+  const { maxRowsPerSheet = 1000 } = options;
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
+  const sliced = rows.slice(0, maxRowsPerSheet);
+  return sliced.map((row: any) => {
+    const out: any = {};
+    for (const [k, v] of Object.entries(row)) {
+      out[normalizeHeader(k)] = v;
+    }
+    return out;
+  });
 }
 
-// Process Excel file with OpenAI using direct file upload
+function workbookToMultiSheetJson(wb: any, options: { maxRowsPerSheet?: number } = {}): any {
+  const { maxRowsPerSheet = 1000 } = options;
+  const data: any = {};
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    if (!ws) continue;
+    data[name] = sheetToJsonLimited(ws, { maxRowsPerSheet });
+  }
+  return data;
+}
+
+// Build Responses API requests based on successful approach
+function buildResponsesAPIRequest(preParsedText: string, documentType: "itt" | "response", contractorName?: string) {
+  return {
+    model: "gpt-5",
+    service_tier: "priority",
+    input: [{
+      role: "user",
+      content: [{
+        type: "input_text",
+        text: `You are an expert construction tender analyst extracting Bill of Quantities (ITT) data.
+
+CRITICAL REQUIREMENTS:
+1. Analyze ALL worksheets in the provided Excel data
+2. Identify the main "Bill of Quantities" worksheet (may be named "BoQ", "Schedule", "Bill of Quantities", etc.)
+3. Extract EVERY line item that contains work scope - not just samples
+4. Include complete descriptions, item codes, units, quantities
+5. For ITT documents, rates/amounts are typically 0 or missing
+6. Return confidence as decimal between 0-1
+
+EXTRACTION PROCESS:
+- Review all worksheet names and data structure
+- Find the primary worksheet containing line items
+- Extract ALL rows with item data (skip headers/totals)
+- Preserve complete descriptions and item codes
+- Group by sections where identifiable
+- Set rates/amounts to 0 or null for ITT documents
+
+IMPORTANT: Extract EVERY item to resolve the 0 line items issue. Do not limit to samples.
+
+Return ONLY JSON matching the exact schema provided.
+
+${preParsedText}`
+      }]
+    }],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "ITTExtraction",
+        strict: true,
+        schema
+      }
+    }
+  };
+}
+
+// Process Excel file with OpenAI using local parsing + Responses API
 export async function processExcelWithDirectUpload(
   fileBuffer: Buffer,
   filename: string,
@@ -143,139 +167,103 @@ export async function processExcelWithDirectUpload(
   contractorName?: string
 ): Promise<{ response: OpenAIExcelResponse; usage: TokenUsage }> {
   const client = getOpenAIClient();
-  let assistantId: string | null = null;
-  let fileId: string | null = null;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
-      const serviceTier = process.env.OPENAI_SERVICE_TIER || SERVICE_TIER;
+      const startTime = Date.now();
 
-      logger.info("Processing Excel with OpenAI direct upload", {
+      logger.info("Processing Excel with local parsing + GPT-5 Responses API", {
         filename,
         documentType,
         contractorName,
         attempt,
-        serviceTier,
       });
 
-      // Upload file to OpenAI
-      logger.info("Uploading file to OpenAI");
-      const mimeType = inferMimeType(filename);
-      const fileUpload = new File([fileBuffer], filename, { type: mimeType });
-      const file = await client.files.create({
-        file: fileUpload,
-        purpose: "assistants",
-      });
-      fileId = file.id;
-      logger.info("File uploaded successfully", { fileId: file.id, size: file.bytes, mimeType });
+      // Parse Excel locally using XLSX
+      logger.info("Parsing Excel file locally");
+      const wb = XLSX.read(fileBuffer);
+      logger.info(`Found ${wb.SheetNames.length} worksheets: ${wb.SheetNames.join(', ')}`);
 
-      // Create assistant
-      logger.info("Creating OpenAI assistant");
-      const assistant = await client.beta.assistants.create({
-        name: "Construction Document Analyzer",
-        instructions: generateAssistantInstructions(documentType, contractorName),
-        model: model,
-        tools: [{ type: "code_interpreter" }],
-        tool_resources: {
-          code_interpreter: {
-            file_ids: [file.id]
-          }
-        }
-      });
-      assistantId = assistant.id;
-      logger.info("Assistant created successfully", { assistantId: assistant.id });
+      const multi = workbookToMultiSheetJson(wb, { maxRowsPerSheet: 1000 });
+      const jsonStr = JSON.stringify(multi);
+      const MAX_BYTES = 700_000; // ~700 KB cap
 
-      // Create thread
-      logger.info("Creating conversation thread");
-      const thread = await client.beta.threads.create();
+      const preParsedText =
+        jsonStr.length <= MAX_BYTES
+          ? `XLSX workbook parsed (all sheets):\n${jsonStr}`
+          : `XLSX workbook parsed (all sheets, truncated):\n${jsonStr.slice(0, MAX_BYTES)}\n/* TRUNCATED */`;
 
-      // Add message with extraction prompt
-      await client.beta.threads.messages.create(thread.id, {
-        role: "user",
-        content: generateExtractionPrompt(filename, documentType, contractorName)
-      });
+      logger.info(`Parsed data size: ${(jsonStr.length / 1024).toFixed(1)} KB`);
 
-      // Run the assistant
-      logger.info("Starting analysis run");
-      const run = await client.beta.threads.runs.create(thread.id, {
-        assistant_id: assistant.id
-      });
+      // Build request for Responses API
+      const req = buildResponsesAPIRequest(preParsedText, documentType, contractorName);
 
-      // Wait for completion
-      let runStatus = run;
-      while (runStatus.status === 'queued' || runStatus.status === 'in_progress') {
-        await sleep(2000);
-        runStatus = await client.beta.threads.runs.retrieve(thread.id, run.id);
-        logger.info("Run status update", { status: runStatus.status });
-      }
+      logger.info("Processing with GPT-5 Responses API");
+      const resp = await client.responses.create(req);
 
-      if (runStatus.status === 'completed') {
-        // Get the response
-        const messages = await client.beta.threads.messages.list(thread.id);
-        const lastMessage = messages.data[0];
+      const endTime = Date.now();
+      logger.info(`Processing completed in ${(endTime - startTime) / 1000}s`);
 
-        if (lastMessage.content[0].type === 'text') {
-          const rawText = lastMessage.content[0].text.value;
-          const jsonPayload = extractJsonFromText(rawText);
-
-          let parsed: unknown;
-          try {
-            parsed = JSON.parse(jsonPayload);
-          } catch (error) {
-            logger.error('Failed to parse JSON from OpenAI response', {
-              rawTextPreview: rawText?.slice(0, 500),
-            });
-            throw new OpenAIExtractionError(
-              'Failed to parse JSON from OpenAI response',
-              'INVALID_JSON',
-              { rawTextPreview: rawText?.slice(0, 500) }
-            );
-          }
-
-          let validated: OpenAIExcelResponse;
-          try {
-            validated = OpenAIExcelResponseSchema.parse(parsed);
-          } catch (error) {
-            const issues =
-              error && typeof error === 'object' && 'issues' in (error as any)
-                ? (error as any).issues
-                : error;
-            logger.error('OpenAI response schema validation failed', { issues });
-            throw new OpenAIExtractionError(
-              'OpenAI response schema validation failed',
-              'INVALID_RESPONSE_SCHEMA',
-              { issues },
-            );
-          }
-
-          const usage: TokenUsage = {
-            promptTokens: 0,
-            completionTokens: 0,
-            totalTokens: 0,
-            estimatedCost: 0,
-          };
-
-          logger.info('OpenAI extraction successful', {
-            itemsExtracted: validated.items.length,
-            sectionsFound: validated.sections?.length || 0,
-            confidence: validated.metadata.confidence,
-          });
-
-          return { response: validated, usage };
-        } else {
-          throw new OpenAIExtractionError(
-            'Unexpected response format from OpenAI',
-            'INVALID_RESPONSE_FORMAT'
-          );
-        }
-      } else {
+      // Extract JSON response
+      const out = resp.output_text ?? resp.output?.[0]?.content?.[0]?.text;
+      if (!out) {
         throw new OpenAIExtractionError(
-          `Run failed with status: ${runStatus.status}. Error: ${runStatus.last_error?.message || 'Unknown error'}`,
-          "RUN_FAILED"
+          "No output returned from GPT-5",
+          "NO_OUTPUT"
         );
       }
+
+      logger.info("Received structured JSON response");
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(out);
+      } catch (error) {
+        logger.error('Failed to parse JSON from OpenAI response', {
+          rawTextPreview: out?.slice(0, 500),
+        });
+        throw new OpenAIExtractionError(
+          'Failed to parse JSON from OpenAI response',
+          'INVALID_JSON',
+          { rawTextPreview: out?.slice(0, 500) }
+        );
+      }
+
+      // Transform the response to match our expected schema
+      const transformedResponse = transformGPTResponseToSchema(parsed, documentType, contractorName);
+
+      let validated: OpenAIExcelResponse;
+      try {
+        validated = OpenAIExcelResponseSchema.parse(transformedResponse);
+      } catch (error) {
+        const issues =
+          error && typeof error === 'object' && 'issues' in (error as any)
+            ? (error as any).issues
+            : error;
+        logger.error('OpenAI response schema validation failed', { issues });
+        throw new OpenAIExtractionError(
+          'OpenAI response schema validation failed',
+          'INVALID_RESPONSE_SCHEMA',
+          { issues },
+        );
+      }
+
+      const usage: TokenUsage = {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCost: 0,
+      };
+
+      logger.info('OpenAI extraction successful', {
+        itemsExtracted: validated.items.length,
+        sectionsFound: validated.sections?.length || 0,
+        confidence: validated.metadata.confidence,
+      });
+
+      return { response: validated, usage };
+
     } catch (error) {
       lastError = error as Error;
       logger.warn(`OpenAI attempt ${attempt} failed`, {
@@ -287,24 +275,6 @@ export async function processExcelWithDirectUpload(
       if (attempt < MAX_RETRIES) {
         await sleep(RETRY_DELAY_MS * attempt);
       }
-    } finally {
-      // Cleanup resources
-      if (assistantId) {
-        try {
-          await client.beta.assistants.del(assistantId);
-          logger.info("Assistant cleaned up", { assistantId });
-        } catch (cleanupError) {
-          logger.warn("Failed to cleanup assistant", { assistantId, error: cleanupError });
-        }
-      }
-      if (fileId) {
-        try {
-          await client.files.del(fileId);
-          logger.info("File cleaned up", { fileId });
-        } catch (cleanupError) {
-          logger.warn("Failed to cleanup file", { fileId, error: cleanupError });
-        }
-      }
     }
   }
 
@@ -315,18 +285,55 @@ export async function processExcelWithDirectUpload(
   );
 }
 
-// Legacy function for backward compatibility - now uses direct upload
+// Transform GPT response to match our expected schema
+function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "response", contractorName?: string): any {
+  return {
+    documentType: gptResponse.doc_type || documentType,
+    contractorName: gptResponse.contractor_name || contractorName || null,
+    worksheetAnalyzed: gptResponse.primary_worksheet || "Unknown",
+    items: (gptResponse.items || []).map((item: any) => ({
+      itemCode: item.item_code,
+      description: item.description,
+      unit: item.unit,
+      qty: item.quantity,
+      rate: item.rate,
+      amount: item.amount,
+      sectionGuess: item.section
+    })),
+    sections: (gptResponse.sections || []).map((section: any) => ({
+      code: section.code,
+      name: section.name
+    })),
+    metadata: {
+      totalRows: gptResponse.metadata?.total_items || 0,
+      totalWorksheets: gptResponse.metadata?.total_worksheets || 0,
+      extractedItems: gptResponse.items?.length || 0,
+      confidence: gptResponse.metadata?.confidence || 0,
+      warnings: gptResponse.metadata?.warnings || []
+    }
+  };
+}
+
+// Legacy function for backward compatibility - now uses local parsing
 export async function processExcelWithAI(
-  workbook: ExcelJS.Workbook,
+  workbook: any,
   documentType: "itt" | "response",
   contractorName?: string
 ): Promise<OpenAIExcelResponse> {
-  // Convert workbook back to buffer for direct upload
-  const buffer = await workbook.xlsx.writeBuffer();
+  // Convert workbook to buffer for processing
+  let buffer: Buffer;
+  if (workbook && typeof workbook.xlsx === 'object' && typeof workbook.xlsx.writeBuffer === 'function') {
+    // ExcelJS workbook
+    buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  } else {
+    // Already a buffer or other format
+    buffer = Buffer.isBuffer(workbook) ? workbook : Buffer.from(workbook);
+  }
+
   const filename = `workbook_${Date.now()}.xlsx`;
 
   const { response } = await processExcelWithDirectUpload(
-    Buffer.from(buffer),
+    buffer,
     filename,
     documentType,
     contractorName
@@ -336,66 +343,6 @@ export async function processExcelWithAI(
 }
 
 
-function extractJsonFromText(text: string): string {
-  if (!text) {
-    return text;
-  }
-
-  const fenceStart = text.indexOf('```');
-  if (fenceStart !== -1) {
-    const afterFence = text.slice(fenceStart + 3);
-    const firstNewline = afterFence.indexOf('\n');
-    const withoutLang = firstNewline !== -1 ? afterFence.slice(firstNewline + 1) : afterFence;
-    const fenceEnd = withoutLang.indexOf('```');
-    if (fenceEnd !== -1) {
-      return withoutLang.slice(0, fenceEnd).trim();
-    }
-  }
-
-  const firstBrace = text.indexOf('{');
-  const lastBrace = text.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    return text.slice(firstBrace, lastBrace + 1).trim();
-  }
-
-  return text.trim();
-}
-function inferMimeType(filename: string): string {
-  const ext = path.extname(filename).toLowerCase();
-  switch (ext) {
-    case ".xlsx":
-      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    case ".xls":
-      return "application/vnd.ms-excel";
-    case ".csv":
-      return "text/csv";
-    case ".pdf":
-      return "application/pdf";
-    default:
-      return "application/octet-stream";
-  }
-}
-
-// Helper: Calculate cost estimate
-function calculateCost(
-  promptTokens: number,
-  completionTokens: number,
-  model: string
-): number {
-  // GPT-5 pricing (hypothetical - adjust as needed)
-  const pricing = {
-    "gpt-5": { prompt: 0.00015, completion: 0.0006 }, // per token
-    "gpt-4-turbo-preview": { prompt: 0.00001, completion: 0.00003 },
-    "gpt-4": { prompt: 0.00003, completion: 0.00006 },
-  };
-
-  const modelPricing = pricing[model as keyof typeof pricing] || pricing["gpt-4"];
-
-  return (
-    (promptTokens * modelPricing.prompt) +
-    (completionTokens * modelPricing.completion)
-  );
-}
 
 // Helper: Sleep function
 function sleep(ms: number): Promise<void> {
