@@ -29,7 +29,7 @@ const API_BASE_URL = env.success && env.data.NEXT_PUBLIC_API_BASE_URL
   ? env.data.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "")
   : (process.env.NODE_ENV === "development"
       ? "http://localhost:4000/api/v1"
-      : "https://bueh625ugh.execute-api.ap-southeast-2.amazonaws.com/dev");
+      : "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev");
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -162,6 +162,5 @@ export const api = {
 };
 
 export type ApiClient = typeof api;
-
 
 
