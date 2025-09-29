@@ -144,10 +144,12 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                 <TableRow>
                   <TableHead>Section</TableHead>
                   {contractors.map((contractor) => (
-                    <TableHead key={contractor.contractorId}>{contractor.name}</TableHead>
+                    <TableHead key={contractor.contractorId} className="text-center">
+                      {contractor.name}
+                    </TableHead>
                   ))}
-                  <TableHead>Total ITT</TableHead>
-                  <TableHead>Exceptions</TableHead>
+                  <TableHead className="text-center">Total ITT</TableHead>
+                  <TableHead className="text-center">Exceptions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -162,11 +164,11 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                       </div>
                     </TableCell>
                     {contractors.map((contractor) => (
-                      <TableCell key={contractor.contractorId} className="text-right">
+                      <TableCell key={contractor.contractorId} className="text-center">
                         {formatCurrency(section.totalsByContractor[contractor.contractorId] ?? 0)}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right">{formatCurrency(section.totalITTAmount)}</TableCell>
+                    <TableCell className="text-center">{formatCurrency(section.totalITTAmount)}</TableCell>
                     <TableCell className="text-center">{section.exceptionCount}</TableCell>
                   </TableRow>
                 ))}
@@ -212,7 +214,9 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                           <TableHead>Item</TableHead>
                           <TableHead>Description</TableHead>
                           {contractors.map((contractor) => (
-                            <TableHead key={contractor.contractorId}>{contractor.name}</TableHead>
+                            <TableHead key={contractor.contractorId} className="text-center">
+                              {contractor.name}
+                            </TableHead>
                           ))}
                         </TableRow>
                       </TableHeader>
@@ -229,7 +233,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                               <TableCell className="font-medium">{line.ittItem.itemCode}</TableCell>
                               <TableCell className="whitespace-pre-line">{line.ittItem.description}</TableCell>
                               {contractors.map((contractor) => (
-                                <TableCell key={contractor.contractorId} className="text-right">
+                                <TableCell key={contractor.contractorId} className="text-center">
                                   {renderResponseAmount(
                                     line.responses[contractor.contractorId]?.amount,
                                     line.responses[contractor.contractorId]?.amountLabel
@@ -262,8 +266,8 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                     <TableRow>
                       <TableHead>Description</TableHead>
                       <TableHead>Contractor</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Section</TableHead>
+                      <TableHead className="text-center">Amount</TableHead>
+                      <TableHead className="text-center">Section</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -271,10 +275,10 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                       <TableRow key={exception.responseItemId}>
                         <TableCell>{exception.description}</TableCell>
                         <TableCell>{exception.contractorName}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           {typeof exception.amount === "number" ? formatCurrency(exception.amount) : "-"}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           {exception.attachedSectionId
                             ? sectionLabelById.get(exception.attachedSectionId) ?? exception.attachedSectionId
                             : "Unassigned"}
