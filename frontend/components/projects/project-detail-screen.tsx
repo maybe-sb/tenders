@@ -240,7 +240,13 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
               {documents.map((doc) => (
                 <TableRow key={doc.docId}>
                   <TableCell>{doc.name}</TableCell>
-                  <TableCell className="capitalize">{doc.type}</TableCell>
+                  <TableCell>
+                    {doc.type === "itt"
+                      ? "ITT"
+                      : doc.type === "response"
+                        ? "Response"
+                        : doc.type}
+                  </TableCell>
                   <TableCell>{doc.contractorName ?? "-"}</TableCell>
                   <TableCell>
                     <Badge variant={statusVariant(doc.parseStatus)}>{doc.parseStatus}</Badge>

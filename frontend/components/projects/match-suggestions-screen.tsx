@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, XCircle, Loader2, Play, Check } from "lucide-react";
 
@@ -10,12 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatAmount } from "@/lib/currency";
-import { MatchSuggestion, MatchStatus, MatchFilterOption, ContractorSummary } from "@/types/tenders";
+import { MatchSuggestion, MatchStatus, MatchFilterOption } from "@/types/tenders";
 
 interface MatchSuggestionsScreenProps {
   projectId: string;
@@ -30,9 +28,9 @@ interface CommentDialogState {
 export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProps) {
   const queryClient = useQueryClient();
 
-  const [statusFilter, setStatusFilter] = useState<MatchFilterOption>("reviewable");
-  const [contractorFilter, setContractorFilter] = useState<string>("all");
-  const [confidenceFilter, setConfidenceFilter] = useState<"100" | "90+" | "80+" | "all">("80+");
+  const statusFilter: MatchFilterOption = "all";
+  const contractorFilter = "all";
+  const confidenceFilter: "100" = "100";
   const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
   const [commentDialog, setCommentDialog] = useState<CommentDialogState>({
     isOpen: false,
@@ -67,7 +65,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
     queryKey: ["match-suggestions", projectId, statusFilter, contractorFilter],
     queryFn: () => api.listMatches(projectId, {
       status: statusFilter,
-      contractor: contractorFilter !== "all" ? contractorFilter : undefined
+      contractor: undefined,
     }),
   });
 
@@ -77,13 +75,8 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
     switch (confidenceFilter) {
       case "100":
         return suggestion.confidence >= 1.0;
-      case "90+":
-        return suggestion.confidence >= 0.9;
-      case "80+":
-        return suggestion.confidence >= 0.8;
-      case "all":
       default:
-        return true;
+        return suggestion.confidence >= 1.0;
     }
   });
 
@@ -234,7 +227,6 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
   const rejectedCount = suggestions.filter(s => s.status === "rejected").length;
   const highConfidenceCount = suggestions.filter(s => s.confidence >= 1.0).length;
 
-  const contractors = projectDetail?.contractors || [];
 
   const handleSelectMatch = (matchId: string, selected: boolean) => {
     setSelectedMatches(prev => {
@@ -272,11 +264,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       .map(s => s.matchId);
 
     if (acceptableMatches.length === 0) {
-      if (confidenceFilter === "100") {
-        toast.info("No suggested matches with 100% confidence. Try lowering the confidence filter to see more matches.");
-      } else {
-        toast.info("No suggested matches available to accept");
-      }
+      toast.info("No 100% confidence matches available to accept.");
       return;
     }
 
@@ -325,6 +313,8 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       onMouseDown={(e) => handleMouseDown(e, column)}
     />
   );
+
+  const hasSelectableMatches = suggestions.some((s) => s.status === "suggested");
 
   if (error) {
     return (
@@ -435,81 +425,12 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="confidence-filter">Confidence:</Label>
-              <Select
-                value={confidenceFilter}
-                onValueChange={(value: "100" | "90+" | "80+" | "all") => setConfidenceFilter(value)}
-              >
-                <SelectTrigger id="confidence-filter" className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="100">100% Only</SelectItem>
-                  <SelectItem value="90+">90%+</SelectItem>
-                  <SelectItem value="80+">80%+</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="contractor-filter">Contractor:</Label>
-              <Select
-                value={contractorFilter}
-                onValueChange={(value: string) => setContractorFilter(value)}
-              >
-                <SelectTrigger id="contractor-filter" className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Contractors</SelectItem>
-                  {contractors.map(contractor => (
-                    <SelectItem key={contractor.contractorId} value={contractor.contractorId}>
-                      {contractor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="status-filter">Status:</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(value: MatchFilterOption) => setStatusFilter(value)}
-              >
-                <SelectTrigger id="status-filter" className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="reviewable">Reviewable</SelectItem>
-                  <SelectItem value="suggested">Suggested</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Suggestions table */}
       <Card>
         <CardHeader>
           <CardTitle>Match Suggestions</CardTitle>
           <CardDescription>
-            {statusFilter === "all"
-              ? `Showing all ${suggestions.length} match suggestions`
-              : statusFilter === "reviewable"
-              ? `Showing ${suggestions.length} reviewable match suggestions (excluding accepted/manual)`
-              : `Showing ${suggestions.length} ${statusFilter} match suggestions`
-            }
+            {`Showing ${suggestions.length} match suggestions at 100% confidence`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -520,19 +441,16 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
             </div>
           ) : suggestions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {confidenceFilter === "100" && suggestions.length === 0 && allSuggestions.length > 0
-                ? "No 100% confidence matches found. Try lowering the confidence filter to see more suggestions."
-                : statusFilter === "all"
-                ? "No match suggestions found. Try running auto-match to generate suggestions."
-                : `No ${statusFilter} suggestions found.`
-              }
+              {allSuggestions.length > 0
+                ? "No 100% confidence matches found. Try running auto-match again to generate more suggestions."
+                : "No match suggestions found. Try running auto-match to generate suggestions."}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table ref={tableRef} style={{ tableLayout: 'fixed', width: '100%' }}>
                 <TableHeader>
                   <TableRow>
-                    {statusFilter === "suggested" && (
+                    {hasSelectableMatches && (
                       <TableHead style={{ width: columnWidths.checkbox, position: 'relative' }}>
                         <input
                           type="checkbox"
@@ -567,7 +485,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
               <TableBody>
                 {suggestions.map((suggestion) => (
                   <TableRow key={suggestion.matchId} className={selectedMatches.has(suggestion.matchId) ? "bg-blue-50" : ""}>
-                    {statusFilter === "suggested" && (
+                    {hasSelectableMatches && (
                       <TableCell style={{ width: columnWidths.checkbox, overflow: 'hidden' }}>
                         <input
                           type="checkbox"
