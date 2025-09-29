@@ -25,11 +25,17 @@ const env = ENV_SCHEMA.safeParse({
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
 });
 
-const API_BASE_URL = env.success && env.data.NEXT_PUBLIC_API_BASE_URL
+const FALLBACK_PROD_BASE = "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev";
+
+const configuredBase = env.success && env.data.NEXT_PUBLIC_API_BASE_URL
   ? env.data.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "")
-  : (process.env.NODE_ENV === "development"
-      ? "http://localhost:4000/api/v1"
-      : "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev");
+  : undefined;
+
+const API_BASE_URL = process.env.NODE_ENV === "development"
+  ? "http://localhost:4000/api/v1"
+  : (!configuredBase || configuredBase.includes("bueh625ugh.execute-api"))
+      ? FALLBACK_PROD_BASE
+      : configuredBase;
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -162,5 +168,4 @@ export const api = {
 };
 
 export type ApiClient = typeof api;
-
 
