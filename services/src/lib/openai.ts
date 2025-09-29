@@ -382,7 +382,7 @@ function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "r
     contractorName: gptResponse.contractor_name || contractorName || null,
     worksheetAnalyzed: gptResponse.primary_worksheet || "Unknown",
     items: (gptResponse.items || []).map((item: any) => ({
-      itemCode: item.item_code,
+      itemCode: normaliseString(item.item_code),
       description: typeof item.description === "string"
         ? item.description
         : String(item.description ?? ""),
@@ -390,7 +390,7 @@ function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "r
       qty: coerceNumber(item.quantity, isItt ? 0 : undefined),
       rate: coerceNumber(item.rate, isItt ? 0 : undefined),
       amount: coerceNumber(item.amount, isItt ? 0 : undefined),
-      sectionGuess: item.section
+      sectionGuess: normaliseString(item.section)
     })),
     sections: (gptResponse.sections || []).map((section: any) => ({
       code: section.code,
