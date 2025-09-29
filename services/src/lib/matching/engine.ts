@@ -311,7 +311,7 @@ export class MatchingEngine {
 
     // Base confidence from similarity
     if (similarity === 1.0) {
-      confidence = 0.8; // Exact description match = 0.8 per instructions
+      confidence = 1.0; // Exact description match earns full confidence
     } else if (similarity >= 0.8) {
       confidence = 0.7; // High similarity
     } else if (similarity >= 0.6) {
