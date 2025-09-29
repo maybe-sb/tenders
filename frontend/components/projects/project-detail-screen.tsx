@@ -123,8 +123,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     });
   };
 
-  const summaryMatches = useMemo(() => summarizeMatches(matches ?? []), [matches]);
-
   if (detailLoading) {
     return <ProjectDetailSkeleton />;
   }
@@ -135,8 +133,8 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <Card className="flex-1">
+      <div>
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-2xl font-semibold">
               <FileSpreadsheet className="h-6 w-6" />
@@ -156,30 +154,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
               <StatBlock label="Exceptions" value={detail.stats?.unmatchedItems ?? 0} />
             </div>
             <StatusBadge status={detail.status} />
-          </CardContent>
-        </Card>
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>Matching status</CardTitle>
-            <CardDescription>Suggested matches and review progress.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span>Suggested</span>
-              <Badge>{summaryMatches.suggested}</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Pending review</span>
-              <Badge variant="secondary">{summaryMatches.pending}</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Accepted</span>
-              <Badge variant="outline">{summaryMatches.accepted}</Badge>
-            </div>
-            <Button className="mt-4 w-full" onClick={handleAutoMatch} disabled={triggerAutoMatch.isPending}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {triggerAutoMatch.isPending ? "Running auto-match..." : "Run auto-match"}
-            </Button>
           </CardContent>
         </Card>
       </div>
