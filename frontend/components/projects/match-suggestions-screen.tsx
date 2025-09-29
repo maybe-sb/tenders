@@ -48,8 +48,8 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
   // Column width state for resizable columns
   const [columnWidths, setColumnWidths] = useState({
     checkbox: 50,
-    ittItem: 250,  // Slightly increased since Status column removed
-    responseItem: 300,  // More space for response items
+    ittItem: 320,
+    responseItem: 320,
     contractor: 140,
     confidence: 100,
     actions: 120,
@@ -522,21 +522,31 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
                         />
                       </TableCell>
                     )}
-                    <TableCell style={{ width: columnWidths.ittItem, overflow: 'hidden' }}>
+                    <TableCell
+                      style={{ width: columnWidths.ittItem }}
+                      className="align-top whitespace-pre-wrap break-words"
+                    >
                       <div className="space-y-1">
-                        <div className="font-medium text-sm leading-tight truncate" title={suggestion.ittDescription}>
+                        <div className="font-medium text-sm leading-tight" title={suggestion.ittDescription}>
                           {suggestion.ittDescription}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
+                        <div className="text-xs text-muted-foreground">
                           ID: {suggestion.ittItemId}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell style={{ width: columnWidths.responseItem, overflow: 'hidden' }}>
+                    <TableCell
+                      style={{ width: columnWidths.responseItem }}
+                      className="align-top whitespace-pre-wrap break-words"
+                    >
                       <div className="space-y-1">
-                        <div className="font-medium text-sm leading-tight truncate"
-                             title={suggestion.responseDescription || "No response description"}>
-                          {suggestion.responseDescription || <span className="text-red-500 italic">No response description</span>}
+                        <div
+                          className="font-medium text-sm leading-tight"
+                          title={suggestion.responseDescription || "No response description"}
+                        >
+                          {suggestion.responseDescription || (
+                            <span className="text-red-500 italic">No response description</span>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           <div className="flex flex-wrap gap-2">
