@@ -17,7 +17,7 @@ interface MatchReviewRow {
   matchId: string;
   ittDescription: string;
   contractorName: string;
-  responseItem?: Pick<ResponseItem, "description" | "itemCode" | "amount" | "qty" | "rate" | "unit"> & {
+  responseItem?: Pick<ResponseItem, "description" | "amount" | "qty" | "rate" | "unit"> & {
     amount?: number;
     qty?: number;
     rate?: number;
@@ -231,8 +231,8 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
                     <p className="font-medium truncate" title={row.responseItem.description}>
                       {row.responseItem.description}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate" title={row.responseItem.itemCode ?? "No code"}>
-                      {row.responseItem.itemCode ?? "No code"}
+                    <p className="text-xs text-muted-foreground truncate italic text-gray-400">
+                      Response item
                     </p>
                     <div className="flex gap-3 text-xs text-muted-foreground">
                       {row.responseItem.qty !== undefined && (

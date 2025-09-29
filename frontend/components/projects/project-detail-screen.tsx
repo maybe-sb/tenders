@@ -252,10 +252,9 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
                 ittDescription: match.ittDescription,
                 contractorName: match.contractorName,
                 status: match.status,
-                responseItem: match.responseDescription
-                  ? {
-                      description: match.responseDescription,
-                      itemCode: match.responseItemCode,
+               responseItem: match.responseDescription
+                 ? {
+                     description: match.responseDescription,
                       amount: match.responseAmount,
                       qty: match.responseQty,
                       rate: match.responseRate,

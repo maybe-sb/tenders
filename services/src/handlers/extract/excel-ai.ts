@@ -284,7 +284,7 @@ function hasQuantities(item: OpenAIResponseItem): boolean {
 function mapAIResponseToResponseItems(response: OpenAIExcelResponse): ParsedResponseItem[] {
   return response.items.map(aiItem => ({
     sectionGuess: aiItem.sectionGuess,
-    itemCode: aiItem.itemCode,
+    itemCode: undefined,
     description: aiItem.description,
     unit: aiItem.unit,
     qty: aiItem.qty,

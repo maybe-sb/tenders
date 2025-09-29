@@ -373,7 +373,6 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
 function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
   const [columnWidths, setColumnWidths] = useState({
     section: 120,
-    code: 100,
     description: 200,
     unit: 80,
     qty: 90,
@@ -381,7 +380,7 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
     amount: 110,
   });
 
-  type SortColumn = "section" | "code" | "description" | "unit" | "qty" | "rate" | "amount";
+  type SortColumn = "section" | "description" | "unit" | "qty" | "rate" | "amount";
   const [sortState, setSortState] = useState<{ column: SortColumn | null; direction: SortDirection }>({
     column: null,
     direction: "desc",
@@ -443,8 +442,6 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
     switch (column) {
       case "section":
         return (item.sectionGuess || "").toLowerCase();
-      case "code":
-        return (item.itemCode || "").toLowerCase();
       case "description":
         return item.description?.toLowerCase() ?? "";
       case "unit":
@@ -504,10 +501,6 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
               <SortButton column="section" label="Section" />
               <ResizeHandle column="section" />
             </TableHead>
-            <TableHead style={{ width: columnWidths.code, position: 'relative' }}>
-              <SortButton column="code" label="Code" />
-              <ResizeHandle column="code" />
-            </TableHead>
             <TableHead style={{ width: columnWidths.description, position: 'relative' }}>
               <SortButton column="description" label="Description" />
               <ResizeHandle column="description" />
@@ -537,7 +530,6 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
                   {item.sectionGuess || "Unknown"}
                 </div>
               </TableCell>
-              <TableCell style={{ width: columnWidths.code, overflow: 'hidden' }} className="font-mono text-sm truncate">{item.itemCode || "-"}</TableCell>
               <TableCell style={{ width: columnWidths.description, overflow: 'hidden' }}>
                 <div className="truncate" title={item.description}>
                   {item.description}

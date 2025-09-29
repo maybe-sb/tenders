@@ -495,14 +495,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
                           {suggestion.responseDescription || <span className="text-red-500 italic">No response description</span>}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          <div className="truncate">
-                            {suggestion.responseItemCode ? (
-                              <span>Code: {suggestion.responseItemCode}</span>
-                            ) : (
-                              <span className="text-gray-400 italic">No code</span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-1">
+                          <div className="flex flex-wrap gap-2">
                             {suggestion.responseQty !== undefined && (
                               <span>Qty: {suggestion.responseQty.toLocaleString()}</span>
                             )}
