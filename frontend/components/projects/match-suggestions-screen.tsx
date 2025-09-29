@@ -61,7 +61,12 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
   const startWidth = React.useRef(0);
 
   // Fetch match suggestions
-  const { data: allSuggestions = [], isLoading, error } = useQuery({
+  const {
+    data: allSuggestions = [],
+    isLoading,
+    error,
+    isFetching,
+  } = useQuery({
     queryKey: ["match-suggestions", projectId, statusFilter, contractorId ?? "none"],
     queryFn: () => api.listMatches(projectId, {
       status: statusFilter,
@@ -335,6 +340,27 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
           <p className="text-muted-foreground">
             Review high-confidence matches for {contractorName ?? "this contractor"} and bulk accept obvious suggestions
           </p>
+          <Badge
+            variant={autoMatchMutation.isPending ? "secondary" : isFetching && !isLoading ? "outline" : "outline"}
+            className="mt-2 inline-flex items-center gap-2"
+          >
+            {autoMatchMutation.isPending ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Auto-match running…
+              </>
+            ) : isFetching && !isLoading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Updating suggestions…
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                Up to date
+              </>
+            )}
+          </Badge>
         </div>
         <div className="flex gap-2">
           {selectedMatches.size > 0 && (
