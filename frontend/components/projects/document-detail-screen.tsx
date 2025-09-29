@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import { ArrowLeft, FileSpreadsheet, AlertTriangle, CheckCircle, Clock, ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ export function DocumentDetailScreen({ projectId, docId }: DocumentDetailScreenP
   });
 
   // Get document details from project detail
-  const document = useMemo(() => {
+  const document = React.useMemo(() => {
     return projectDetail?.documents.find(doc => doc.docId === docId);
   }, [projectDetail, docId]);
 
@@ -45,7 +45,7 @@ export function DocumentDetailScreen({ projectId, docId }: DocumentDetailScreenP
   });
 
   // Filter items by document (assuming we'll have documentId field or can filter by contractor)
-  const filteredItems = useMemo(() => {
+  const filteredItems = React.useMemo(() => {
     if (document?.type === "itt") {
       return ittItems || [];
     } else if (document?.type === "response") {
@@ -199,12 +199,32 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
     direction: "desc",
   });
 
-  const tableRef = useRef<HTMLTableElement>(null);
-  const isResizing = useRef<string | null>(null);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  const isResizing = React.useRef<string | null>(null);
+  const startX = React.useRef(0);
+  const startWidth = React.useRef(0);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, column: string) => {
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+
+    const diff = e.clientX - startX.current;
+    const newWidth = Math.max(50, startWidth.current + diff);
+
+    setColumnWidths((prev) => ({
+      ...prev,
+      [isResizing.current!]: newWidth,
+    }));
+  }, []);
+
+  const handleMouseUp = React.useCallback(() => {
+    isResizing.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleMouseMove]);
+
+  const handleMouseDown = React.useCallback((e: React.MouseEvent, column: string) => {
     e.preventDefault();
     isResizing.current = column;
     startX.current = e.clientX;
@@ -214,27 +234,7 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
     document.addEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, [columnWidths]);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizing.current) return;
-
-    const diff = e.clientX - startX.current;
-    const newWidth = Math.max(50, startWidth.current + diff);
-
-    setColumnWidths(prev => ({
-      ...prev,
-      [isResizing.current!]: newWidth,
-    }));
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    isResizing.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-  }, [handleMouseMove]);
+  }, [columnWidths, handleMouseMove, handleMouseUp]);
 
   const ResizeHandle = ({ column }: { column: string }) => (
     <div
@@ -251,7 +251,7 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
     );
   };
 
-  const getSortValue = (item: ITTItem, column: SortColumn) => {
+  const getSortValue = React.useCallback((item: ITTItem, column: SortColumn) => {
     switch (column) {
       case "section":
         return (item.sectionName || item.sectionId || "").toLowerCase();
@@ -270,9 +270,9 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
       default:
         return "";
     }
-  };
+  }, []);
 
-  const sortedItems = useMemo(() => {
+  const sortedItems = React.useMemo(() => {
     if (!sortState.column) {
       return items;
     }
@@ -290,7 +290,7 @@ function IttItemsTable({ items }: { items: ITTItem[] }) {
 
       return String(aValue).localeCompare(String(bValue)) * directionMultiplier;
     });
-  }, [items, sortState]);
+  }, [items, sortState, getSortValue]);
 
   const SortButton = ({ column, label }: { column: SortColumn; label: string }) => {
     const isActive = sortState.column === column;
@@ -387,12 +387,32 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
     direction: "desc",
   });
 
-  const tableRef = useRef<HTMLTableElement>(null);
-  const isResizing = useRef<string | null>(null);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  const isResizing = React.useRef<string | null>(null);
+  const startX = React.useRef(0);
+  const startWidth = React.useRef(0);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, column: string) => {
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+
+    const diff = e.clientX - startX.current;
+    const newWidth = Math.max(50, startWidth.current + diff);
+
+    setColumnWidths((prev) => ({
+      ...prev,
+      [isResizing.current!]: newWidth,
+    }));
+  }, []);
+
+  const handleMouseUp = React.useCallback(() => {
+    isResizing.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleMouseMove]);
+
+  const handleMouseDown = React.useCallback((e: React.MouseEvent, column: string) => {
     e.preventDefault();
     isResizing.current = column;
     startX.current = e.clientX;
@@ -402,27 +422,7 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
     document.addEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, [columnWidths]);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizing.current) return;
-
-    const diff = e.clientX - startX.current;
-    const newWidth = Math.max(50, startWidth.current + diff);
-
-    setColumnWidths(prev => ({
-      ...prev,
-      [isResizing.current!]: newWidth,
-    }));
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    isResizing.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-  }, [handleMouseMove]);
+  }, [columnWidths, handleMouseMove, handleMouseUp]);
 
   const ResizeHandle = ({ column }: { column: string }) => (
     <div
@@ -439,7 +439,7 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
     );
   };
 
-  const getSortValue = (item: ResponseItem, column: SortColumn) => {
+  const getSortValue = React.useCallback((item: ResponseItem, column: SortColumn) => {
     switch (column) {
       case "section":
         return (item.sectionGuess || "").toLowerCase();
@@ -458,9 +458,9 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
       default:
         return "";
     }
-  };
+  }, []);
 
-  const sortedItems = useMemo(() => {
+  const sortedItems = React.useMemo(() => {
     if (!sortState.column) {
       return items;
     }
@@ -478,7 +478,7 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
 
       return String(aValue).localeCompare(String(bValue)) * directionMultiplier;
     });
-  }, [items, sortState]);
+  }, [items, sortState, getSortValue]);
 
   const SortButton = ({ column, label }: { column: SortColumn; label: string }) => {
     const isActive = sortState.column === column;

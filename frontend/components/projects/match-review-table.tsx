@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { MatchStatus, ResponseItem } from "@/types/tenders";
-import { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState } from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { formatAmount } from "@/lib/currency";
 
@@ -57,12 +57,32 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  const tableRef = useRef<HTMLTableElement>(null);
-  const isResizing = useRef<string | null>(null);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  const isResizing = React.useRef<string | null>(null);
+  const startX = React.useRef(0);
+  const startWidth = React.useRef(0);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, column: string) => {
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+
+    const diff = e.clientX - startX.current;
+    const newWidth = Math.max(50, startWidth.current + diff);
+
+    setColumnWidths((prev) => ({
+      ...prev,
+      [isResizing.current!]: newWidth,
+    }));
+  }, []);
+
+  const handleMouseUp = React.useCallback(() => {
+    isResizing.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleMouseMove]);
+
+  const handleMouseDown = React.useCallback((e: React.MouseEvent, column: string) => {
     e.preventDefault();
     isResizing.current = column;
     startX.current = e.clientX;
@@ -72,29 +92,9 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
     document.addEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, [columnWidths]);
+  }, [columnWidths, handleMouseMove, handleMouseUp]);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizing.current) return;
-
-    const diff = e.clientX - startX.current;
-    const newWidth = Math.max(50, startWidth.current + diff);
-
-    setColumnWidths(prev => ({
-      ...prev,
-      [isResizing.current!]: newWidth,
-    }));
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    isResizing.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-  }, [handleMouseMove]);
-
-  const handleSort = useCallback((column: SortColumn) => {
+  const handleSort = React.useCallback((column: SortColumn) => {
     if (sortColumn === column) {
       setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
     } else {
@@ -103,7 +103,7 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
     }
   }, [sortColumn]);
 
-  const sortedRows = useMemo(() => {
+  const sortedRows = React.useMemo(() => {
     if (!sortColumn) return rows;
 
     return [...rows].sort((a, b) => {

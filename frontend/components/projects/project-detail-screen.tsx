@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FileSpreadsheet, RefreshCw, UploadCloud, Eye } from "lucide-react";
+import React, { useState } from "react";
+import { FileSpreadsheet, UploadCloud, Eye } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -27,7 +27,6 @@ import {
 import { useMatchActions, useProjectMatches } from "@/hooks/use-matches";
 import { uploadToPresignedUrl } from "@/lib/upload";
 import { api } from "@/lib/api";
-import { MatchSuggestion } from "@/types/tenders";
 
 
 
@@ -45,7 +44,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { data: unmatchedItems } = useUnmatchedResponseItems(projectId);
   const { data: exceptions } = useProjectExceptions(projectId);
 
-  const { acceptMatch, rejectMatch, createManualMatch, triggerAutoMatch } = useMatchActions(projectId);
+  const { acceptMatch, rejectMatch, createManualMatch } = useMatchActions(projectId);
 
   const [contractorName, setContractorName] = useState("");
 
@@ -115,14 +114,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     }
   };
 
-  const handleAutoMatch = () => {
-    triggerAutoMatch.mutate(undefined, {
-      onSuccess: () => toast.success("Auto-match triggered"),
-      onError: (error) =>
-        toast.error(error instanceof Error ? error.message : "Failed to trigger auto-match"),
-    });
-  };
-
   if (detailLoading) {
     return <ProjectDetailSkeleton />;
   }
@@ -164,7 +155,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           description="Upload an Excel file containing the ITT BOQ line items. A new upload supersedes previous data."
           accept=".xls,.xlsx"
           onSelectFile={handleIttUpload}
-          disabled={acceptMatch.isPending || rejectMatch.isPending || triggerAutoMatch.isPending}
+          disabled={acceptMatch.isPending || rejectMatch.isPending}
         />
         <Card>
           <CardHeader>
@@ -291,22 +282,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function summarizeMatches(matches: MatchSuggestion[]) {
-  return matches.reduce(
-    (acc, match) => {
-      acc.suggested += 1;
-      if (match.status === "suggested") {
-        acc.pending += 1;
-      }
-      if (match.status === "accepted") {
-        acc.accepted += 1;
-      }
-      return acc;
-    },
-    { suggested: 0, pending: 0, accepted: 0 }
   );
 }
 

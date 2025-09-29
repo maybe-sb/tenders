@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, XCircle, Loader2, Play, Check } from "lucide-react";
 
@@ -10,10 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatAmount } from "@/lib/currency";
-import { MatchSuggestion, MatchStatus, MatchFilterOption } from "@/types/tenders";
+import { MatchSuggestion, MatchStatus } from "@/types/tenders";
 
 interface MatchSuggestionsScreenProps {
   projectId: string;
@@ -28,9 +29,9 @@ interface CommentDialogState {
 export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProps) {
   const queryClient = useQueryClient();
 
-  const statusFilter: MatchFilterOption = "all";
+  const statusFilter = "all" as const;
   const contractorFilter = "all";
-  const confidenceFilter: "100" = "100";
+  const confidenceFilter = "100" as const;
   const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
   const [commentDialog, setCommentDialog] = useState<CommentDialogState>({
     isOpen: false,
@@ -49,16 +50,10 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
     actions: 120,
   });
 
-  const tableRef = useRef<HTMLTableElement>(null);
-  const isResizing = useRef<string | null>(null);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
-
-  // Fetch project detail for contractors
-  const { data: projectDetail } = useQuery({
-    queryKey: ["project-detail", projectId],
-    queryFn: () => api.getProjectDetail(projectId),
-  });
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  const isResizing = React.useRef<string | null>(null);
+  const startX = React.useRef(0);
+  const startWidth = React.useRef(0);
 
   // Fetch match suggestions
   const { data: allSuggestions = [], isLoading, error } = useQuery({
@@ -121,7 +116,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
         } else {
           toast.error(errorMessage);
         }
-      } catch (e) {
+      } catch {
         toast.error("Failed to update match");
       }
     },
@@ -158,7 +153,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
         } else {
           toast.error(errorMessage);
         }
-      } catch (e) {
+      } catch {
         toast.error("Failed to bulk accept matches");
       }
     },
@@ -207,19 +202,6 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
     if (confidence >= 0.75) return "High";
     if (confidence >= 0.6) return "Medium";
     return "Low";
-  };
-
-  const getStatusBadge = (status: MatchStatus) => {
-    switch (status) {
-      case "suggested":
-        return <Badge variant="outline">Suggested</Badge>;
-      case "accepted":
-        return <Badge variant="default" className="bg-green-600">Accepted</Badge>;
-      case "rejected":
-        return <Badge variant="destructive">Rejected</Badge>;
-      case "manual":
-        return <Badge variant="secondary">Manual</Badge>;
-    }
   };
 
   const suggestedCount = suggestions.filter(s => s.status === "suggested").length;
@@ -275,37 +257,37 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
   };
 
   // Resizable column handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent, column: string) => {
-    e.preventDefault();
-    isResizing.current = column;
-    startX.current = e.clientX;
-    startWidth.current = columnWidths[column as keyof typeof columnWidths];
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  }, [columnWidths]);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  const handleMouseMove = React.useCallback((event: MouseEvent) => {
     if (!isResizing.current) return;
 
-    const diff = e.clientX - startX.current;
+    const diff = event.clientX - startX.current;
     const newWidth = Math.max(50, startWidth.current + diff);
 
-    setColumnWidths(prev => ({
+    setColumnWidths((prev) => ({
       ...prev,
       [isResizing.current!]: newWidth,
     }));
   }, []);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = React.useCallback(() => {
     isResizing.current = null;
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
   }, [handleMouseMove]);
+
+  const handleMouseDown = React.useCallback((event: React.MouseEvent, column: string) => {
+    event.preventDefault();
+    isResizing.current = column;
+    startX.current = event.clientX;
+    startWidth.current = columnWidths[column as keyof typeof columnWidths];
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [columnWidths, handleMouseMove, handleMouseUp]);
 
   const ResizeHandle = ({ column }: { column: string }) => (
     <div
