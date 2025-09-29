@@ -21,13 +21,12 @@ const ENV_SCHEMA = z.object({
     .optional(),
 });
 
+const FALLBACK_PROD_BASE = "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev";
 const env = ENV_SCHEMA.safeParse({
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
 });
 
-const FALLBACK_PROD_BASE = "https://r2sh485jmf.execute-api.ap-southeast-2.amazonaws.com/dev";
-
-const API_BASE_URL = env.success && env.data.NEXT_PUBLIC_API_BASE_URL
+const API_BASE_URL = process.env.NODE_ENV === "development" && env.success && env.data.NEXT_PUBLIC_API_BASE_URL
   ? env.data.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "")
   : FALLBACK_PROD_BASE;
 
