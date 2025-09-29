@@ -335,21 +335,47 @@ export async function processExcelWithDirectUpload(
 }
 
 // Transform GPT response to match our expected schema
-function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "response", contractorName?: string): any {
+export function transformGPTResponseToSchema(gptResponse: any, documentType: "itt" | "response", contractorName?: string): any {
   const isItt = documentType === "itt";
 
   const parseNumeric = (value: unknown): number | undefined => {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
     }
+
     if (typeof value === "string") {
-      const cleaned = value.replace(/[,\s]/g, "");
-      if (!cleaned) {
+      const trimmed = value.trim();
+      if (!trimmed) {
         return undefined;
       }
-      const parsed = Number(cleaned);
-      return Number.isFinite(parsed) ? parsed : undefined;
+
+      let normalised = trimmed.replace(/[,\s]/g, "");
+
+      // Handle accounting-style negatives e.g. ($1,234.50)
+      let accountingNegative = false;
+      if (/^\(.*\)$/.test(normalised)) {
+        accountingNegative = true;
+        normalised = normalised.slice(1, -1);
+      }
+
+      // Remove common currency symbols before stripping remaining noise
+      normalised = normalised.replace(/[£€¥$]/g, "");
+
+      // Remove any trailing annotations like 'exGST' or stray text
+      normalised = normalised.replace(/[^0-9+\-.]/g, "");
+
+      if (!normalised || /^(?:\+|-)?\.?$/.test(normalised)) {
+        return undefined;
+      }
+
+      const parsed = Number(normalised);
+      if (!Number.isFinite(parsed)) {
+        return undefined;
+      }
+
+      return accountingNegative ? -parsed : parsed;
     }
+
     return undefined;
   };
 
