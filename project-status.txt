@@ -5,14 +5,14 @@ Completed Work
 --------------
 - Frontend scaffolding using Next.js + shadcn UI (projects list, detail, match, assessment views).
 - DynamoDB repositories & list APIs for sections, ITT items, response items, matches, and exceptions wired into project handlers.
-- **Excel extraction pipeline with full hierarchy support**: Two-pass algorithm extracts sections/sub-sections from ITT BOQ files with "Bill of Quantities" worksheet detection, natural sorting for hierarchical item codes (1.1.1, 1.1.10, etc.), and robust hierarchy mapping.
+- **Excel extraction pipeline with full hierarchy support**: AI-assisted parser performs multi-pass hierarchy detection, normalises section and sub-section codes/names, and handles natural sorting for item codes (1.1.1, 1.1.10, etc.).
 - **Enhanced contractor response extraction**: Robust Excel processing with worksheet detection, header synonym mapping, data corruption filtering, note/comment exclusion, and improved quantity/pricing data extraction.
 - **Database schema enhancements**: ITTItem entities now include hierarchy fields (sectionName, subSectionCode, subSectionName) with updated repositories and API responses.
-- **Frontend ITT items improvements**: Text filtering across item codes/descriptions/sections, natural sorting algorithm for hierarchical codes, and clean hierarchy display format ("5. Preliminaries → 1.1. Establishment").
+- **Frontend ITT items improvements**: Text filtering across item codes/descriptions/sections, natural sorting algorithm for hierarchical codes, clean hierarchy display format ("5. Preliminaries → 1.1 Establishment"), and sortable, resizable columns on the document detail view.
 - **Real-world testing completed**: ITT.xlsx extraction validated with 125 line items across 11 sections and 30 sub-sections successfully processed.
 - **Complete Auto-Match System**: Sophisticated matching engine with exact/fuzzy algorithms, confidence scoring, unit equivalence checking, section-based boosting, and SQS-driven async processing.
 - **Advanced Match API**: Full CRUD operations including list/filter matches, update status with conflict detection, create manual matches, bulk accept with atomic transactions, and auto-match triggers.
-- **Match Suggestions Interface**: Rich frontend with real-time statistics, advanced filtering (confidence, contractor, status), bulk operations, resizable columns, conflict handling, and comment system.
+- **Match Suggestions Interface**: Focused review screen showing 100% confidence suggestions by default, live statistics, bulk operations, resizable columns, conflict handling, and comment capture for lower-confidence actions.
 - **Manual Matching UI**: Drag-and-drop interface for creating manual matches with ITT items and response items.
 - **Complete Assessment System**: Data aggregation across contractors/sections, total calculations, exception handling, and structured reporting data.
 - **Assessment Frontend**: Section-by-section comparison tables, contractor summaries, exception display, and PDF generation integration.
@@ -55,6 +55,7 @@ Outstanding / Next Steps
    - Match removal/unmatching functionality (infrastructure exists).
    - Enhanced bulk operations with progress tracking.
    - Advanced reporting and analytics capabilities.
+   - Normalisation of contractor response hierarchy back to ITT sections/sub-sections for consistent UI display.
 
 6. Testing & QA
    - Expand unit coverage for repositories, API handlers, and match logic.

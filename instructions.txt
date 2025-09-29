@@ -15,8 +15,8 @@
   * **Tender Responses**: Excel or PDF.
 * Extraction pipeline:
 
-  * Parse Excel via Lambda (openpyxl or pandas) → structured line items.
-  * Parse PDF via AWS Textract → table extraction → structured line items.
+  * Parse Excel via Lambda using local workbook pre-processing plus the OpenAI Responses API to generate structured ITT/response JSON.
+  * Parse PDF via AWS Textract → table extraction → structured line items (implementation pending).
 * Matching engine:
 
   * Exact match attempts (by code/description/unit; configurable normalization).
