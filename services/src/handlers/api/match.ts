@@ -73,7 +73,20 @@ export async function listMatches(event: ApiEvent, params: Record<string, string
     ? matches.filter(match => match.contractorId === contractorFilter)
     : matches;
 
-  const payload = filteredMatches.map((match) => toMatchResponse(match, {
+  const resolvedResponseItems = new Set(
+    filteredMatches
+      .filter(match => match.status === "accepted" || match.status === "manual")
+      .map(match => match.responseItemId)
+  );
+
+  const visibleMatches = filteredMatches.filter(match => {
+    if (match.status !== "suggested") {
+      return true;
+    }
+    return !resolvedResponseItems.has(match.responseItemId);
+  });
+
+  const payload = visibleMatches.map((match) => toMatchResponse(match, {
     ittMap,
     responseMap,
     contractorMap,
