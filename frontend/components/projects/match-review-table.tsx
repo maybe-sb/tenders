@@ -7,16 +7,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { MatchStatus, ResponseItem } from "@/types/tenders";
 import React, { useState } from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, Check, X } from "lucide-react";
 import { formatAmount } from "@/lib/currency";
 
 interface MatchReviewRow {
   matchId: string;
   ittDescription: string;
-  contractorName: string;
   responseItem?: Pick<ResponseItem, "description" | "amount" | "qty" | "rate" | "unit"> & {
     amount?: number;
     qty?: number;
@@ -34,24 +32,15 @@ interface MatchReviewTableProps {
   onOpenManual?: (matchId: string) => void;
 }
 
-const STATUS_STYLES: Record<MatchStatus, string> = {
-  suggested: "secondary",
-  accepted: "default",
-  rejected: "destructive",
-  manual: "outline",
-};
-
-type SortColumn = 'ittDescription' | 'responseDescription' | 'contractorName' | 'confidence' | 'status';
+type SortColumn = 'ittDescription' | 'responseDescription' | 'confidence';
 type SortDirection = 'asc' | 'desc';
 
 export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: MatchReviewTableProps) {
   const [columnWidths, setColumnWidths] = useState({
-    ittItem: 300,
-    responseItem: 300,
-    contractor: 150,
-    confidence: 100,
-    status: 100,
-    actions: 200,
+    ittItem: 360,
+    responseItem: 360,
+    confidence: 110,
+    actions: 120,
   });
 
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
@@ -119,17 +108,9 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
           aValue = a.responseItem?.description || '';
           bValue = b.responseItem?.description || '';
           break;
-        case 'contractorName':
-          aValue = a.contractorName;
-          bValue = b.contractorName;
-          break;
         case 'confidence':
           aValue = a.confidence;
           bValue = b.confidence;
-          break;
-        case 'status':
-          aValue = a.status;
-          bValue = b.status;
           break;
         default:
           return 0;
@@ -191,23 +172,12 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
               <SortableHeader column="responseDescription">Response Item</SortableHeader>
               <ResizeHandle column="responseItem" />
             </TableHead>
-            <TableHead style={{ width: columnWidths.contractor, position: 'relative' }}>
-              <SortableHeader column="contractorName">Contractor</SortableHeader>
-              <ResizeHandle column="contractor" />
-            </TableHead>
             <TableHead
               style={{ width: columnWidths.confidence, position: 'relative' }}
               className="text-center"
             >
               <SortableHeader column="confidence" className="justify-center">Confidence</SortableHeader>
               <ResizeHandle column="confidence" />
-            </TableHead>
-            <TableHead
-              style={{ width: columnWidths.status, position: 'relative' }}
-              className="text-center"
-            >
-              <SortableHeader column="status" className="justify-center">Status</SortableHeader>
-              <ResizeHandle column="status" />
             </TableHead>
             <TableHead
               style={{ width: columnWidths.actions, position: 'relative' }}
@@ -253,11 +223,6 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
                   <p className="text-sm text-muted-foreground">No response item selected</p>
                 )}
               </TableCell>
-              <TableCell style={{ width: columnWidths.contractor, overflow: 'hidden' }}>
-                <span className="truncate" title={row.contractorName}>
-                  {row.contractorName}
-                </span>
-              </TableCell>
               <TableCell
                 style={{ width: columnWidths.confidence, overflow: 'hidden' }}
                 className="text-center"
@@ -265,32 +230,28 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
                 {Math.round(row.confidence * 100)}%
               </TableCell>
               <TableCell
-                style={{ width: columnWidths.status, overflow: 'hidden' }}
-                className="text-center"
-              >
-                <Badge variant={STATUS_STYLES[row.status] as never}>{row.status}</Badge>
-              </TableCell>
-              <TableCell
                 style={{ width: columnWidths.actions, overflow: 'hidden' }}
-                className="space-x-2 text-right"
+                className="flex items-center justify-end gap-2"
               >
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="icon"
                   onClick={() => onAccept(row.matchId)}
                   disabled={row.status === "accepted"}
-                  className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                  className="h-8 w-8 bg-green-600 hover:bg-green-700 text-white border-green-600"
+                  aria-label="Accept match"
                 >
-                  Accept
+                  <Check className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="icon"
                   onClick={() => onReject(row.matchId)}
                   disabled={row.status === "rejected"}
-                  className="bg-red-600 hover:bg-red-700 text-white border-red-600"
+                  className="h-8 w-8 bg-red-600 hover:bg-red-700 text-white border-red-600"
+                  aria-label="Reject match"
                 >
-                  Reject
+                  <X className="h-4 w-4" />
                 </Button>
                 {onOpenManual && (
                   <Button variant="ghost" size="sm" onClick={() => onOpenManual(row.matchId)}>
