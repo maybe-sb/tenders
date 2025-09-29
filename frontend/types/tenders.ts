@@ -22,7 +22,7 @@ export interface DocumentSummary {
   docId: string;
   type: DocumentType;
   name: string;
-  contractorId?: string;
+  contractorId: string;
   contractorName?: string;
   source: "excel" | "pdf";
   uploadedAt: string;
@@ -170,6 +170,7 @@ export interface MatchSuggestion {
   responseQty?: number;
   responseRate?: number;
   responseUnit?: string;
+  contractorId?: string;
   contractorName: string;
   confidence: number;
   status: MatchStatus;

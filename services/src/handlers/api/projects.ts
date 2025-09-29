@@ -207,29 +207,30 @@ export async function listProjectResponseItems(event: ApiEvent, params: Record<s
 
 
   const unmatchedOnlyValue = getQueryParam(event, "unmatchedOnly");
-
   const unmatchedOnly =
     typeof unmatchedOnlyValue === "string" &&
     ["true", "1", "yes"].includes(unmatchedOnlyValue.toLowerCase());
 
+  const contractorParam = getQueryParam(event, "contractor");
+  const contractorFilter = contractorParam && contractorParam !== "all" ? contractorParam : undefined;
+
   let responseItems = await fetchProjectResponseItems(ownerSub, projectId);
 
-  if (unmatchedOnly) {
+  if (contractorFilter) {
+    responseItems = responseItems.filter((item) => item.contractorId === contractorFilter);
+  }
 
-    const matches = await fetchProjectMatches(ownerSub, projectId);
+  if (unmatchedOnly) {
+    const matches = await fetchProjectMatches(ownerSub, projectId, { status: "all" });
 
     const matchedSet = new Set(
-
       matches
-
         .filter((match) => match.status === "accepted" || match.status === "manual")
-
+        .filter((match) => !contractorFilter || match.contractorId === contractorFilter)
         .map((match) => match.responseItemId)
-
     );
 
     responseItems = responseItems.filter((item) => !matchedSet.has(item.responseItemId));
-
   }
 
   const payload: ResponseItemResponse[] = responseItems.map(toResponseItemResponse);
@@ -258,6 +259,9 @@ export async function listProjectExceptions(event: ApiEvent, params: Record<stri
 
 
 
+  const contractorParam = getQueryParam(event, "contractor");
+  const contractorFilter = contractorParam && contractorParam !== "all" ? contractorParam : undefined;
+
   const [exceptions, responseItems, contractors] = await Promise.all([
 
     fetchProjectExceptions(ownerSub, projectId),
@@ -269,6 +273,10 @@ export async function listProjectExceptions(event: ApiEvent, params: Record<stri
   ]);
 
 
+
+  const filteredExceptions = contractorFilter
+    ? exceptions.filter((exception) => exception.contractorId === contractorFilter)
+    : exceptions;
 
   const responseItemMap = new Map(
 
@@ -286,7 +294,7 @@ export async function listProjectExceptions(event: ApiEvent, params: Record<stri
 
 
 
-  const payload: ExceptionResponse[] = exceptions.map((exception) =>
+  const payload: ExceptionResponse[] = filteredExceptions.map((exception) =>
 
     toExceptionResponse(exception, {
 
@@ -361,6 +369,4 @@ export async function deleteProject(event: ApiEvent, params: Record<string, stri
   return jsonResponse(204, null);
 
 }
-
-
 

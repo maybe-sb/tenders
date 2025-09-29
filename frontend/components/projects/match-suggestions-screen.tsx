@@ -18,6 +18,8 @@ import { MatchSuggestion, MatchStatus } from "@/types/tenders";
 
 interface MatchSuggestionsScreenProps {
   projectId: string;
+  contractorId?: string;
+  contractorName?: string | null;
 }
 
 interface CommentDialogState {
@@ -26,11 +28,10 @@ interface CommentDialogState {
   action: "accept" | "reject" | null;
 }
 
-export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProps) {
+export function MatchSuggestionsScreen({ projectId, contractorId, contractorName }: MatchSuggestionsScreenProps) {
   const queryClient = useQueryClient();
 
   const statusFilter = "all" as const;
-  const contractorFilter = "all";
   const confidenceFilter = "100" as const;
   const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
   const [commentDialog, setCommentDialog] = useState<CommentDialogState>({
@@ -39,6 +40,10 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
     action: null,
   });
   const [comment, setComment] = useState("");
+
+  React.useEffect(() => {
+    setSelectedMatches(new Set());
+  }, [contractorId]);
 
   // Column width state for resizable columns
   const [columnWidths, setColumnWidths] = useState({
@@ -57,11 +62,12 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
 
   // Fetch match suggestions
   const { data: allSuggestions = [], isLoading, error } = useQuery({
-    queryKey: ["match-suggestions", projectId, statusFilter, contractorFilter],
+    queryKey: ["match-suggestions", projectId, statusFilter, contractorId ?? "none"],
     queryFn: () => api.listMatches(projectId, {
       status: statusFilter,
-      contractor: undefined,
+      contractor: contractorId,
     }),
+    enabled: Boolean(projectId && contractorId),
   });
 
   // Apply confidence filtering client-side
@@ -77,7 +83,7 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
 
   // Trigger auto-match mutation
   const autoMatchMutation = useMutation({
-    mutationFn: () => api.triggerAutoMatch(projectId),
+    mutationFn: () => api.triggerAutoMatch(projectId, { contractorId }),
     onSuccess: () => {
       toast.success("Auto-match started. The system is generating match suggestions.");
       // Refresh suggestions after a delay
@@ -298,6 +304,16 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
 
   const hasSelectableMatches = suggestions.some((s) => s.status === "suggested");
 
+  if (!contractorId) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">
+          Select a contractor to view and run auto-match suggestions.
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (error) {
     return (
       <Card>
@@ -316,7 +332,9 @@ export function MatchSuggestionsScreen({ projectId }: MatchSuggestionsScreenProp
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Auto-Match & Review</h2>
-          <p className="text-muted-foreground">Review high-confidence matches and bulk accept obvious suggestions</p>
+          <p className="text-muted-foreground">
+            Review high-confidence matches for {contractorName ?? "this contractor"} and bulk accept obvious suggestions
+          </p>
         </div>
         <div className="flex gap-2">
           {selectedMatches.size > 0 && (

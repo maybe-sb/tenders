@@ -91,6 +91,19 @@ export async function triggerAutoMatch(event: ApiEvent, params: Record<string, s
     return jsonResponse(404, { message: "Project not found" });
   }
 
+  const body = getJsonBody<{ contractorId?: string }>(event);
+  const contractorId = typeof body.contractorId === "string" && body.contractorId.trim().length > 0
+    ? body.contractorId.trim()
+    : undefined;
+
+  if (contractorId) {
+    const contractors = await listProjectContractors(ownerSub, projectId);
+    const hasContractor = contractors.some((contractor) => contractor.contractorId === contractorId);
+    if (!hasContractor) {
+      return jsonResponse(400, { message: "Contractor not found" });
+    }
+  }
+
   const { MATCH_QUEUE_URL } = getEnv();
   if (!MATCH_QUEUE_URL) {
     throw new Error("MATCH_QUEUE_URL environment variable is required for auto-matching");
@@ -100,6 +113,7 @@ export async function triggerAutoMatch(event: ApiEvent, params: Record<string, s
     type: "AUTO_MATCH_REQUEST",
     projectId,
     ownerSub,
+    contractorId,
     requestedAt: new Date().toISOString(),
   });
 

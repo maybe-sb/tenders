@@ -90,16 +90,24 @@ export const api = {
     request<ProjectDetail>(`/projects/${projectId}/detail`, "GET"),
   listIttItems: (projectId: string) =>
     request<ITTItem[]>(`/projects/${projectId}/itt/items`, "GET"),
-  listResponseItems: (projectId: string, params?: { unmatchedOnly?: boolean }) =>
+  listResponseItems: (
+    projectId: string,
+    params?: { unmatchedOnly?: boolean; contractorId?: string }
+  ) =>
     request<ResponseItem[]>(`/projects/${projectId}/responses/items`, "GET", undefined, {
-      query: { unmatchedOnly: params?.unmatchedOnly },
+      query: {
+        unmatchedOnly: params?.unmatchedOnly,
+        contractor: params?.contractorId,
+      },
     }),
   listMatches: (projectId: string, params?: { status?: MatchFilterOption; contractor?: string }) =>
     request<MatchSuggestion[]>(`/projects/${projectId}/match`, "GET", undefined, {
       query: { status: params?.status, contractor: params?.contractor },
     }),
-  listExceptions: (projectId: string) =>
-    request<ExceptionRecord[]>(`/projects/${projectId}/exceptions`, "GET"),
+  listExceptions: (projectId: string, params?: { contractorId?: string }) =>
+    request<ExceptionRecord[]>(`/projects/${projectId}/exceptions`, "GET", undefined, {
+      query: { contractor: params?.contractorId },
+    }),
   createProject: (payload: { name: string }) =>
     request<TenderProject>("/projects", "POST", payload),
   updateProject: (
@@ -127,8 +135,8 @@ export const api = {
     payload: { key: string; contractorId: string; fileName: string; contractorName?: string }
   ) =>
     request<UploadResponse>(`/projects/${projectId}/responses/confirm-upload`, "POST", payload),
-  triggerAutoMatch: (projectId: string) =>
-    request<{ enqueued: boolean }>(`/projects/${projectId}/match/auto`, "POST"),
+  triggerAutoMatch: (projectId: string, payload?: { contractorId?: string }) =>
+    request<{ enqueued: boolean }>(`/projects/${projectId}/match/auto`, "POST", payload),
   updateMatchStatus: (
     projectId: string,
     payload: { matchId: string; status: MatchStatus; comment?: string }

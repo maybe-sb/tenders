@@ -21,19 +21,19 @@ export function useProjectIttItems(projectId: string) {
   });
 }
 
-export function useUnmatchedResponseItems(projectId: string) {
+export function useUnmatchedResponseItems(projectId: string, contractorId?: string) {
   return useQuery({
-    queryKey: ["project-response-items", projectId, "unmatched"],
-    queryFn: () => api.listResponseItems(projectId, { unmatchedOnly: true }),
-    enabled: Boolean(projectId),
+    queryKey: ["project-response-items", projectId, "unmatched", contractorId ?? "none"],
+    queryFn: () => api.listResponseItems(projectId, { unmatchedOnly: true, contractorId }),
+    enabled: Boolean(projectId && contractorId),
     refetchInterval: 4000,
   });
 }
 
-export function useProjectExceptions(projectId: string) {
+export function useProjectExceptions(projectId: string, contractorId?: string) {
   return useQuery({
-    queryKey: ["project-exceptions", projectId],
-    queryFn: () => api.listExceptions(projectId),
-    enabled: Boolean(projectId),
+    queryKey: ["project-exceptions", projectId, contractorId ?? "none"],
+    queryFn: () => api.listExceptions(projectId, { contractorId }),
+    enabled: Boolean(projectId && contractorId),
   });
 }

@@ -5,11 +5,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { MatchFilterOption, MatchSuggestion } from "@/types/tenders";
 
-export function useProjectMatches(projectId: string, status: MatchFilterOption = "suggested") {
+export function useProjectMatches(
+  projectId: string,
+  status: MatchFilterOption = "suggested",
+  contractorId?: string
+) {
   return useQuery({
-    queryKey: ["project-matches", projectId, status],
-    queryFn: () => api.listMatches(projectId, { status }),
-    enabled: Boolean(projectId),
+    queryKey: ["project-matches", projectId, status, contractorId ?? "none"],
+    queryFn: () => api.listMatches(projectId, { status, contractor: contractorId }),
+    enabled: Boolean(projectId && contractorId),
     refetchInterval: status === "suggested" ? 5000 : false,
   });
 }
@@ -20,7 +24,7 @@ export function useMatchActions(projectId: string) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["project-matches", projectId] });
     queryClient.invalidateQueries({ queryKey: ["project-itt-items", projectId] });
-    queryClient.invalidateQueries({ queryKey: ["project-response-items", projectId, "unmatched"] });
+    queryClient.invalidateQueries({ queryKey: ["project-response-items", projectId] });
     queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
   };
 
@@ -43,7 +47,7 @@ export function useMatchActions(projectId: string) {
   });
 
   const triggerAutoMatch = useMutation({
-    mutationFn: () => api.triggerAutoMatch(projectId),
+    mutationFn: (payload?: { contractorId?: string }) => api.triggerAutoMatch(projectId, payload),
     onSuccess: invalidate,
   });
 

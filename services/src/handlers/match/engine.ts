@@ -11,6 +11,7 @@ interface AutoMatchRequest {
   type: "AUTO_MATCH_REQUEST";
   projectId: string;
   ownerSub: string;
+  contractorId?: string;
   requestedAt: string;
 }
 
@@ -39,9 +40,9 @@ export async function handler(event: SQSEvent) {
 }
 
 async function processAutoMatchRequest(request: AutoMatchRequest) {
-  const { projectId, ownerSub } = request;
+  const { projectId, ownerSub, contractorId } = request;
 
-  logger.info("Processing auto-match request", { projectId, ownerSub });
+  logger.info("Processing auto-match request", { projectId, ownerSub, contractorId });
 
   try {
     // Load project data
@@ -51,42 +52,53 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
       listProjectMatches(ownerSub, projectId),
     ]);
 
+    const scopedResponseItems = contractorId
+      ? responseItems.filter(item => item.contractorId === contractorId)
+      : responseItems;
+
+    const scopedMatches = contractorId
+      ? existingMatches.filter(match => match.contractorId === contractorId)
+      : existingMatches;
+
     logger.info("Loaded project data", {
       projectId,
+      contractorId,
       ittItemsCount: ittItems.length,
-      responseItemsCount: responseItems.length,
-      existingMatchesCount: existingMatches.length,
+      responseItemsCount: scopedResponseItems.length,
+      existingMatchesCount: scopedMatches.length,
     });
 
     if (ittItems.length === 0) {
-      logger.warn("No ITT items found for matching", { projectId });
+      logger.warn("No ITT items found for matching", { projectId, contractorId });
       return;
     }
 
-    if (responseItems.length === 0) {
-      logger.warn("No response items found for matching", { projectId });
+    if (scopedResponseItems.length === 0) {
+      logger.warn("No response items found for matching", { projectId, contractorId });
       return;
     }
 
     // Filter out response items that are already matched
     const matchedResponseItemIds = new Set(
-      existingMatches
+      scopedMatches
         .filter(match => match.status === "accepted" || match.status === "manual")
         .map(match => match.responseItemId)
     );
 
-    const unmatchedResponseItems = responseItems.filter(
+    const unmatchedResponseItems = scopedResponseItems.filter(
       item => !matchedResponseItemIds.has(item.responseItemId)
     );
 
     logger.info("Filtered unmatched response items", {
       totalResponseItems: responseItems.length,
+      scopedResponseItems: scopedResponseItems.length,
       alreadyMatched: matchedResponseItemIds.size,
       unmatchedCount: unmatchedResponseItems.length,
+      contractorId,
     });
 
     if (unmatchedResponseItems.length === 0) {
-      logger.info("All response items are already matched", { projectId });
+      logger.info("All response items are already matched", { projectId, contractorId });
       return;
     }
 
@@ -101,6 +113,7 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
     logger.info("Starting matching process", {
       ittItemsCount: ittItems.length,
       unmatchedResponseItemsCount: unmatchedResponseItems.length,
+      contractorId,
       sampleIttItem: ittItems[0] ? {
         itemCode: ittItems[0].itemCode,
         description: ittItems[0].description
@@ -115,6 +128,7 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
 
     logger.info("Matching completed", {
       candidatesFound: matchCandidates.length,
+      contractorId,
       candidates: matchCandidates.map(c => ({
         ittItemId: c.ittItemId,
         responseItemId: c.responseItemId,
@@ -126,6 +140,7 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
 
     logger.info("Generated match candidates", {
       projectId,
+      contractorId,
       candidatesCount: matchCandidates.length,
       highConfidenceCount: matchCandidates.filter(c => c.confidence >= 0.75).length,
       mediumConfidenceCount: matchCandidates.filter(c => c.confidence >= 0.6 && c.confidence < 0.75).length,
@@ -133,7 +148,7 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
 
     // Filter out candidates that would conflict with existing matches
     const existingMatchKeys = new Set(
-      existingMatches.map(match => `${match.responseItemId}:${match.ittItemId}`)
+      scopedMatches.map(match => `${match.responseItemId}:${match.ittItemId}`)
     );
 
     const newCandidates = matchCandidates.filter(
@@ -172,6 +187,7 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
 
     logger.info("Auto-match process completed", {
       projectId,
+      contractorId,
       candidatesProcessed: newCandidates.length,
       matchesCreated: createdMatches,
       duration: Date.now() - new Date(request.requestedAt).getTime(),
@@ -181,6 +197,7 @@ async function processAutoMatchRequest(request: AutoMatchRequest) {
     logger.error("Auto-match process failed", {
       projectId,
       ownerSub,
+      contractorId,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });

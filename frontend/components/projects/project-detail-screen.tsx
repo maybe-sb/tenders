@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UploadCard } from "@/components/projects/upload-card";
 import { MatchReviewTable } from "@/components/projects/match-review-table";
@@ -39,17 +40,41 @@ interface ProjectDetailScreenProps {
 
 export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { data: detail, isLoading: detailLoading } = useProjectDetail(projectId);
-  const { data: matches, isLoading: matchesLoading } = useProjectMatches(projectId, "all");
+  const [selectedContractorId, setSelectedContractorId] = useState<string | undefined>(undefined);
+  const { data: matchesData, isLoading: matchesLoading } = useProjectMatches(projectId, "all", selectedContractorId);
   const { data: ittItems } = useProjectIttItems(projectId);
-  const { data: unmatchedItems } = useUnmatchedResponseItems(projectId);
-  const { data: exceptions } = useProjectExceptions(projectId);
+  const { data: unmatchedItemsData } = useUnmatchedResponseItems(projectId, selectedContractorId);
+  const { data: exceptionsData } = useProjectExceptions(projectId, selectedContractorId);
 
   const { acceptMatch, rejectMatch, createManualMatch } = useMatchActions(projectId);
 
   const [contractorName, setContractorName] = useState("");
 
   const documents = detail?.documents ?? [];
-  const responseItems = unmatchedItems ?? [];
+  const contractors = React.useMemo(() => detail?.contractors ?? [], [detail?.contractors]);
+
+  React.useEffect(() => {
+    if (contractors.length === 0) {
+      setSelectedContractorId(undefined);
+      return;
+    }
+
+    setSelectedContractorId((current) => {
+      if (current && contractors.some((contractor) => contractor.contractorId === current)) {
+        return current;
+      }
+      return contractors[0].contractorId;
+    });
+  }, [contractors]);
+
+  const selectedContractor = contractors.find((contractor) => contractor.contractorId === selectedContractorId) ?? null;
+
+  const responseItems = selectedContractorId ? unmatchedItemsData ?? [] : [];
+  const matches = selectedContractorId ? matchesData ?? [] : [];
+  const exceptions = selectedContractorId ? exceptionsData ?? [] : [];
+  const manualEmptyState = selectedContractorId
+    ? <p className="text-sm text-muted-foreground">All response items matched.</p>
+    : <p className="text-sm text-muted-foreground">Select a contractor to manage manual matches.</p>;
 
   const handleIttUpload = async (file: File) => {
     try {
@@ -233,6 +258,33 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
         </CardContent>
       </Card>
 
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        {contractors.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Contractor</span>
+            <Select
+              value={selectedContractorId ?? ""}
+              onValueChange={(value) => setSelectedContractorId(value)}
+            >
+              <SelectTrigger className="w-full sm:w-64">
+                <SelectValue placeholder="Select contractor" />
+              </SelectTrigger>
+              <SelectContent>
+                {contractors.map((contractor) => (
+                  <SelectItem key={contractor.contractorId} value={contractor.contractorId}>
+                    {contractor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Upload a contractor response to enable matching workflows.
+          </p>
+        )}
+      </div>
+
       <Tabs defaultValue="auto-match" className="space-y-4">
         <TabsList>
           <TabsTrigger value="auto-match">Auto-Match & Review</TabsTrigger>
@@ -241,20 +293,24 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           <TabsTrigger value="exceptions">Exceptions</TabsTrigger>
         </TabsList>
         <TabsContent value="auto-match" className="space-y-4">
-          <MatchSuggestionsScreen projectId={projectId} />
+          <MatchSuggestionsScreen
+            projectId={projectId}
+            contractorId={selectedContractorId}
+            contractorName={selectedContractor?.name}
+          />
         </TabsContent>
         <TabsContent value="matches" className="space-y-4">
           <MatchReviewTable
-            rows={(matches ?? [])
+            rows={matches
               .filter((match) => match.status !== "accepted" && match.status !== "manual")
               .map((match) => ({
                 matchId: match.matchId,
                 ittDescription: match.ittDescription,
-                contractorName: match.contractorName,
+                contractorName: match.contractorName ?? "Unknown",
                 status: match.status,
-               responseItem: match.responseDescription
-                 ? {
-                     description: match.responseDescription,
+                responseItem: match.responseDescription
+                  ? {
+                      description: match.responseDescription,
                       amount: match.responseAmount,
                       qty: match.responseQty,
                       rate: match.responseRate,
@@ -266,18 +322,20 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
             onAccept={handleAccept}
             onReject={handleReject}
           />
-          {matchesLoading && <p className="text-sm text-muted-foreground">Refreshing suggestions...</p>}
+          {matchesLoading && selectedContractorId && (
+            <p className="text-sm text-muted-foreground">Refreshing suggestions...</p>
+          )}
         </TabsContent>
         <TabsContent value="manual">
           <DnDPanel
             ittItems={ittItems ?? []}
             responseItems={responseItems}
             onManualMatch={handleManualMatch}
-            emptyState={<p className="text-sm text-muted-foreground">All response items matched.</p>}
+            emptyState={manualEmptyState}
           />
         </TabsContent>
         <TabsContent value="exceptions">
-          <ExceptionsList exceptions={exceptions ?? []} />
+          <ExceptionsList exceptions={exceptions} />
         </TabsContent>
       </Tabs>
     </div>
