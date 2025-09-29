@@ -190,15 +190,21 @@ export function MatchReviewTable({ rows, onAccept, onReject, onOpenManual }: Mat
         <TableBody>
           {sortedRows.map((row) => (
             <TableRow key={row.matchId}>
-              <TableCell style={{ width: columnWidths.ittItem, overflow: 'hidden' }}>
-                <p className="font-medium truncate" title={row.ittDescription}>
+              <TableCell
+                style={{ width: columnWidths.ittItem }}
+                className="align-top whitespace-pre-wrap break-words"
+              >
+                <p className="font-medium" title={row.ittDescription}>
                   {row.ittDescription}
                 </p>
               </TableCell>
-              <TableCell style={{ width: columnWidths.responseItem, overflow: 'hidden' }}>
+              <TableCell
+                style={{ width: columnWidths.responseItem }}
+                className="align-top whitespace-pre-wrap break-words"
+              >
                 {row.responseItem ? (
                   <div className="space-y-1">
-                    <p className="font-medium truncate" title={row.responseItem.description}>
+                    <p className="font-medium" title={row.responseItem.description}>
                       {row.responseItem.description}
                     </p>
                     <p className="text-xs text-muted-foreground truncate italic text-gray-400">
