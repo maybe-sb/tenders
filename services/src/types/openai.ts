@@ -8,6 +8,7 @@ export const OpenAIResponseItemSchema = z.object({
   qty: z.number().optional().describe("Quantity as a number"),
   rate: z.number().optional().describe("Rate or unit price, rounded to 2 decimal places"),
   amount: z.number().optional().describe("Total amount (qty * rate), rounded to 2 decimal places"),
+  amountLabel: z.string().optional().describe("Non-numeric label provided for the amount column"),
   sectionGuess: z.string().optional().describe("Best guess at which section this item belongs to"),
   notes: z.string().optional().describe("Any special notes or conditions"),
 });
@@ -64,6 +65,7 @@ export interface ResponseItemMapping {
   qty?: number;
   rate?: number;
   amount?: number;
+  amountLabel?: string;
 }
 
 export interface IttItemMapping {

@@ -543,7 +543,9 @@ function ResponseItemsTable({ items }: { items: ResponseItem[] }) {
                 {item.rate !== undefined ? `$${formatAmount(item.rate)}` : "-"}
               </TableCell>
               <TableCell style={{ width: columnWidths.amount, overflow: 'hidden' }} className="text-right font-mono">
-                {item.amount !== undefined ? `$${formatAmount(item.amount)}` : "-"}
+                {item.amount !== undefined
+                  ? `$${formatAmount(item.amount)}`
+                  : item.amountLabel ?? "-"}
               </TableCell>
             </TableRow>
           ))}

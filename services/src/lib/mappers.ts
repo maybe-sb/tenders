@@ -74,6 +74,7 @@ export function toResponseItemResponse(item: ResponseItemEntity): ResponseItemRe
     qty: item.qty,
     rate: item.rate,
     amount: item.amount,
+    amountLabel: item.amountLabel,
   };
 }
 

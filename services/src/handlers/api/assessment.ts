@@ -64,6 +64,7 @@ export async function getAssessment(event: ApiEvent, params: Record<string, stri
           qty: responseItem.qty,
           rate: responseItem.rate,
           amount: calculateResponseAmount(responseItem),
+          amountLabel: responseItem.amountLabel,
           matchStatus: match.status,
         };
       }

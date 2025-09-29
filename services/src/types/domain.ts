@@ -110,6 +110,7 @@ export interface ResponseItemEntity {
   qty?: number;
   rate?: number;
   amount?: number;
+  amountLabel?: string;
   meta?: Record<string, unknown>;
 }
 

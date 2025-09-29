@@ -24,6 +24,7 @@ export interface ResponseItemResponse {
   qty?: number;
   rate?: number;
   amount?: number;
+  amountLabel?: string;
 }
 
 export interface ExceptionResponse {

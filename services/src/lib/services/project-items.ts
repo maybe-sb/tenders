@@ -24,6 +24,7 @@ export interface ParsedResponseItem {
   qty?: number;
   rate?: number;
   amount?: number;
+  amountLabel?: string;
 }
 
 function normaliseCode(code?: string): string {
@@ -76,6 +77,7 @@ export async function replaceIttItems(
       qty: item.qty,
       rate: item.rate,
       amount: item.amount,
+      amountLabel: item.amountLabel,
       meta: { docId },
     });
   }

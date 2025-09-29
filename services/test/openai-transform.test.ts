@@ -55,12 +55,15 @@ describe("transformGPTResponseToSchema", () => {
     expect(parsed.items[0].qty).toBe(1);
     expect(parsed.items[0].rate).toBe(18307.67);
     expect(parsed.items[0].amount).toBe(18307.67);
+    expect(parsed.items[0].amountLabel).toBeUndefined();
 
     expect(parsed.items[1].rate).toBe(-7758.23);
     expect(parsed.items[1].amount).toBe(-7758.23);
+    expect(parsed.items[1].amountLabel).toBeUndefined();
 
     expect(parsed.items[2].qty).toBe(1160);
     expect(parsed.items[2].rate).toBeUndefined();
     expect(parsed.items[2].amount).toBeUndefined();
+    expect(parsed.items[2].amountLabel).toBe("Included");
   });
 });

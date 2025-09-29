@@ -154,7 +154,10 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                             <TableCell>{line.ittItem.description}</TableCell>
                             {contractors.map((contractor) => (
                               <TableCell key={contractor.contractorId} className="text-right">
-                                {renderResponseAmount(line.responses[contractor.contractorId]?.amount)}
+                                {renderResponseAmount(
+                                  line.responses[contractor.contractorId]?.amount,
+                                  line.responses[contractor.contractorId]?.amountLabel
+                                )}
                               </TableCell>
                             ))}
                           </TableRow>
@@ -209,10 +212,14 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   );
 }
 
-function renderResponseAmount(value: number | null | undefined) {
-  if (typeof value !== "number") {
-    return "-";
+function renderResponseAmount(value: number | null | undefined, label?: string) {
+  if (typeof value === "number") {
+    return formatCurrency(value);
   }
-  return formatCurrency(value);
-}
 
+  if (label) {
+    return label;
+  }
+
+  return "-";
+}

@@ -93,6 +93,7 @@ export interface ResponseItem {
   qty?: number;
   rate?: number;
   amount?: number;
+   amountLabel?: string;
 }
 
 export type MatchStatus = "suggested" | "accepted" | "rejected" | "manual";

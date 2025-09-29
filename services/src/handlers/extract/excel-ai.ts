@@ -288,8 +288,9 @@ function mapAIResponseToResponseItems(response: OpenAIExcelResponse): ParsedResp
     description: aiItem.description,
     unit: aiItem.unit,
     qty: aiItem.qty,
-    rate: aiItem.rate ? Math.round(aiItem.rate * 100) / 100 : undefined,
-    amount: aiItem.amount ? Math.round(aiItem.amount * 100) / 100 : undefined,
+    rate: typeof aiItem.rate === "number" ? Math.round(aiItem.rate * 100) / 100 : undefined,
+    amount: typeof aiItem.amount === "number" ? Math.round(aiItem.amount * 100) / 100 : undefined,
+    amountLabel: aiItem.amountLabel,
   }));
 }
 

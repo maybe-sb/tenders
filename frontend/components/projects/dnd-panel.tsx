@@ -151,9 +151,11 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
                   {item.rate !== undefined && (
                     <span>Rate: ${formatAmount(item.rate)}</span>
                   )}
-                  {item.amount !== undefined && (
+                  {item.amount !== undefined ? (
                     <span>Amount: ${formatAmount(item.amount)}</span>
-                  )}
+                  ) : item.amountLabel ? (
+                    <span>Amount: {item.amountLabel}</span>
+                  ) : null}
                 </div>
               </DraggableCard>
             ))}

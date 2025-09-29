@@ -407,17 +407,25 @@ export function transformGPTResponseToSchema(gptResponse: any, documentType: "it
     documentType: gptResponse.doc_type || documentType,
     contractorName: gptResponse.contractor_name || contractorName || null,
     worksheetAnalyzed: gptResponse.primary_worksheet || "Unknown",
-    items: (gptResponse.items || []).map((item: any) => ({
-      itemCode: normaliseString(item.item_code),
-      description: typeof item.description === "string"
-        ? item.description
-        : String(item.description ?? ""),
-      unit: normaliseString(item.unit),
-      qty: coerceNumber(item.quantity, isItt ? 0 : undefined),
-      rate: coerceNumber(item.rate, isItt ? 0 : undefined),
-      amount: coerceNumber(item.amount, isItt ? 0 : undefined),
-      sectionGuess: normaliseString(item.section)
-    })),
+    items: (gptResponse.items || []).map((item: any) => {
+      const qty = coerceNumber(item.quantity, isItt ? 0 : undefined);
+      const rate = coerceNumber(item.rate, isItt ? 0 : undefined);
+      const amount = coerceNumber(item.amount, isItt ? 0 : undefined);
+      const rawAmountLabel = normaliseString(item.amount);
+
+      return {
+        itemCode: normaliseString(item.item_code),
+        description: typeof item.description === "string"
+          ? item.description
+          : String(item.description ?? ""),
+        unit: normaliseString(item.unit),
+        qty,
+        rate,
+        amount,
+        amountLabel: amount === undefined && rawAmountLabel ? rawAmountLabel : undefined,
+        sectionGuess: normaliseString(item.section)
+      };
+    }),
     sections: (gptResponse.sections || []).map((section: any) => ({
       code: section.code,
       name: section.name

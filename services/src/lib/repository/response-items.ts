@@ -41,6 +41,7 @@ function mapToResponseItemEntity(record: ResponseItemRecord): ResponseItemEntity
     qty: record.qty,
     rate: record.rate,
     amount: record.amount,
+    amountLabel: record.amountLabel,
     meta: record.meta,
   };
 }
@@ -124,6 +125,7 @@ export interface UpsertResponseItemInput {
   qty?: number;
   rate?: number;
   amount?: number;
+  amountLabel?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -151,6 +153,7 @@ export async function upsertProjectResponseItem(
     qty: input.qty,
     rate: input.rate,
     amount: input.amount,
+    amountLabel: input.amountLabel,
     meta: input.meta,
     GSI1PK: contractorGsiPk(input.contractorId),
     GSI1SK: contractorGsiSk(responseItemId),
