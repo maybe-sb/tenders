@@ -21,16 +21,43 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   const { data, isLoading } = useAssessment(projectId);
   const generateReport = useGenerateReport(projectId);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   const handleGenerateReport = async () => {
     try {
+      setDownloadUrl(null);
+      setIsPolling(true);
       const { reportKey } = await generateReport.mutateAsync();
-      const { url } = await api.getReportDownloadUrl(projectId, reportKey);
-      setDownloadUrl(url);
-      toast.success("Report generated");
+      toast("Generating report", {
+        description: "We'll download it automatically once it's ready.",
+      });
+
+      const MAX_ATTEMPTS = 8;
+      const DELAY_MS = 3000;
+      let reportUrl: string | null = null;
+
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        try {
+          const { url } = await api.getReportDownloadUrl(projectId, reportKey);
+          reportUrl = url;
+          break;
+        } catch (error) {
+          if (attempt === MAX_ATTEMPTS - 1) {
+            throw error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
+        }
+      }
+
+      if (reportUrl) {
+        setDownloadUrl(reportUrl);
+        toast.success("Report ready to download");
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to generate report";
+      const message = error instanceof Error ? error.message : "Report is still generating";
       toast.error(message);
+    } finally {
+      setIsPolling(false);
     }
   };
 
@@ -49,8 +76,8 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
             Compare contractor responses by section and line item.
           </p>
         </div>
-        <Button onClick={handleGenerateReport} disabled={generateReport.isPending}>
-          {generateReport.isPending ? (
+        <Button onClick={handleGenerateReport} disabled={generateReport.isPending || isPolling}>
+          {generateReport.isPending || isPolling ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
             </>

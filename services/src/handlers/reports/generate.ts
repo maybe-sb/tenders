@@ -1,8 +1,119 @@
-import type { SQSEvent } from "aws-lambda";
+import type { SQSEvent, SQSRecord } from "aws-lambda";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { z } from "zod";
+import chromium from "@sparticuz/chromium-min";
+import puppeteer from "puppeteer-core";
 
 import { logger } from "@/lib/logger";
+import { getEnv } from "@/lib/env";
+import { s3Client } from "@/lib/s3";
+import { loadAssessment } from "@/lib/services/assessment";
+import { renderAssessmentSummaryHtml } from "@/lib/reports/render";
+
+interface ReportJob {
+  type: "ASSESSMENT_SUMMARY";
+  ownerSub: string;
+  projectId: string;
+  reportKey: string;
+  requestedAt?: string;
+}
+
+const ReportJobSchema = z.object({
+  type: z.literal("ASSESSMENT_SUMMARY"),
+  ownerSub: z.string().min(1),
+  projectId: z.string().min(1),
+  reportKey: z.string().min(1),
+  requestedAt: z.string().optional(),
+});
 
 export async function handler(event: SQSEvent) {
   logger.info("generate-report invoked", { records: event.Records.length });
-  // TODO: Render HTML and create PDF using headless Chromium.
+  for (const record of event.Records) {
+    try {
+      await processRecord(record);
+    } catch (error) {
+      logger.error("Failed to process report job", {
+        message: error instanceof Error ? error.message : String(error),
+        record: record.messageId,
+      });
+      throw error;
+    }
+  }
+}
+
+async function processRecord(record: SQSRecord): Promise<void> {
+  const payload = parseJobPayload(record.body);
+  const env = getEnv();
+
+  if (!env.ARTIFACTS_BUCKET) {
+    throw new Error("ARTIFACTS_BUCKET is not configured");
+  }
+
+  if (payload.type !== "ASSESSMENT_SUMMARY") {
+    logger.warn("Unsupported report job type", { type: payload.type });
+    return;
+  }
+
+  const assessment = await loadAssessment(payload.ownerSub, payload.projectId);
+  if (!assessment) {
+    logger.warn("Project not found for report job", {
+      projectId: payload.projectId,
+      ownerSub: payload.ownerSub,
+    });
+    return;
+  }
+
+  const html = renderAssessmentSummaryHtml(assessment);
+  const pdfBuffer = await generatePdf(html);
+
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: env.ARTIFACTS_BUCKET,
+      Key: payload.reportKey,
+      Body: pdfBuffer,
+      ContentType: "application/pdf",
+    })
+  );
+
+  logger.info("Report written to S3", {
+    projectId: payload.projectId,
+    key: payload.reportKey,
+  });
+}
+
+function parseJobPayload(body: string): ReportJob {
+  let data: unknown;
+  try {
+    data = JSON.parse(body);
+  } catch (error) {
+    throw new Error(`Invalid JSON payload: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  return ReportJobSchema.parse(data) as ReportJob;
+}
+
+async function generatePdf(html: string): Promise<Buffer> {
+  const executablePath = (await chromium.executablePath()) || process.env.CHROME_EXECUTABLE_PATH;
+
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: executablePath ?? undefined,
+    headless: chromium.headless,
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20mm", bottom: "20mm", left: "16mm", right: "16mm" },
+      displayHeaderFooter: false,
+    });
+
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
 }
