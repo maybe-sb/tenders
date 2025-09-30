@@ -58,7 +58,7 @@ export function DnDPanel({ sections, responseItems, onAssignSection, emptyState 
               Expand view
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-6xl">
+          <DialogContent className="max-w-[95vw]">
             <DialogHeader>
               <DialogTitle>Manual mapping</DialogTitle>
             </DialogHeader>
@@ -121,7 +121,12 @@ function ManualMappingContent({
   const sectionListHeight = layout === "expanded" ? "60vh" : "320px";
 
   return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+    <div
+      className={cn(
+        "mt-4 grid gap-4",
+        layout === "expanded" ? "lg:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]" : "lg:grid-cols-2"
+      )}
+    >
       <Card className="p-4">
         <div className="flex items-center justify-between">
           <h4 className="text-base font-semibold">Unmatched response items</h4>
