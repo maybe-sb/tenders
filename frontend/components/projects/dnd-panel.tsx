@@ -22,7 +22,6 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/currency";
 import type { ResponseItem, SectionSummary, ExceptionRecord } from "@/types/tenders";
@@ -291,21 +290,9 @@ function DroppableSectionCard({ section }: { section: SectionSummary }) {
         isOtherSection && "border-dashed bg-muted/30"
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold leading-tight">
-          {section.code} — {section.name}
-        </p>
-        {isOtherSection && (
-          <Badge variant="secondary" className="text-xs">
-            Special
-          </Badge>
-        )}
-      </div>
-      {isOtherSection && section.exceptionCount > 0 && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          {section.exceptionCount} unassigned item{section.exceptionCount !== 1 ? "s" : ""}
-        </p>
-      )}
+      <p className="text-sm font-semibold leading-tight">
+        {section.code} — {section.name}
+      </p>
     </div>
   );
 }
