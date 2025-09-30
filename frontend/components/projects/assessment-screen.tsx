@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import Link from "next/link";
 import { useAssessment, useGenerateReport } from "@/hooks/use-assessment";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
@@ -108,9 +109,15 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Link href={`/projects/${projectId}`} className="text-primary underline-offset-4 hover:underline">
+              ← Back to project
+            </Link>
+            <span className="hidden md:inline">Compare contractor responses by section and line item.</span>
+          </div>
           <h1 className="text-3xl font-semibold">Assessment</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground md:hidden">
             Compare contractor responses by section and line item.
           </p>
         </div>
