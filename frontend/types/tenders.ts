@@ -174,6 +174,7 @@ export interface MatchSuggestion {
   matchId: string;
   ittItemId: string;
   ittDescription: string;
+  ittSectionName?: string;
   responseItemId: string;
   responseDescription?: string;
   responseItemCode?: string;

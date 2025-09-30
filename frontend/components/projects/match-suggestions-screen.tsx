@@ -536,7 +536,7 @@ export function MatchSuggestionsScreen({
                           {suggestion.ittDescription}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          ID: {suggestion.ittItemId}
+                          Section: {suggestion.ittSectionName ?? "Unknown"}
                         </div>
                       </div>
                     </TableCell>

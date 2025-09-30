@@ -41,6 +41,7 @@ export interface MatchResponse {
   matchId: string;
   ittItemId: string;
   ittDescription?: string | null;
+  ittSectionName?: string;
   contractorId: string;
   contractorName?: string;
   responseItemId: string;

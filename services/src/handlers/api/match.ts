@@ -375,6 +375,7 @@ function toMatchResponse(match: MatchEntity, context: MatchResponseContext): Mat
     matchId: match.matchId,
     ittItemId: match.ittItemId,
     ittDescription: itt?.description ?? null,
+    ittSectionName: itt?.sectionName,
     contractorId: match.contractorId,
     contractorName: contractor?.name,
     responseItemId: match.responseItemId,
