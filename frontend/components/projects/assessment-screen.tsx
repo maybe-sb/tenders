@@ -100,7 +100,10 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   }, [data]);
 
   const contractors = data?.contractors ?? [];
-  const exceptions = data?.exceptions ?? [];
+  const allExceptions = data?.exceptions ?? [];
+
+  // Only show exceptions that were explicitly assigned to "Other/Unclassified" (no section)
+  const exceptions = allExceptions.filter((exception) => !exception.attachedSectionId);
 
   if (isLoading || !data) {
     return <p className="text-muted-foreground">Loading assessment...</p>;
@@ -220,7 +223,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
               ) : null}
             </TabsTrigger>
           ))}
-          <TabsTrigger value="exceptions">Exceptions</TabsTrigger>
+          <TabsTrigger value="exceptions">Other / Unclassified</TabsTrigger>
         </TabsList>
         {sectionEntries.map(({ section, headerTitle, headerSubtitle }) => {
           const sectionLines = lineItemsBySection.get(section.sectionId) ?? [];
@@ -313,12 +316,12 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
         <TabsContent value="exceptions">
           <Card>
             <CardHeader>
-              <CardTitle>Exceptions</CardTitle>
-              <CardDescription>Items that could not be matched to ITT lines.</CardDescription>
+              <CardTitle>Other / Unclassified</CardTitle>
+              <CardDescription>Items manually assigned to Other/Unclassified in Manual Mapping.</CardDescription>
             </CardHeader>
             <CardContent>
               {exceptions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No exceptions recorded.</p>
+                <p className="text-sm text-muted-foreground">No items assigned to Other/Unclassified.</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -326,7 +329,6 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                       <TableHead>Description</TableHead>
                       <TableHead>Contractor</TableHead>
                       <TableHead className="text-center">Amount</TableHead>
-                      <TableHead className="text-center">Section</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -336,11 +338,6 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                         <TableCell>{exception.contractorName}</TableCell>
                         <TableCell className="text-center">
                           {typeof exception.amount === "number" ? formatCurrency(exception.amount) : "-"}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {exception.attachedSectionId
-                            ? sectionLabelById.get(exception.attachedSectionId) ?? exception.attachedSectionId
-                            : "Unassigned"}
                         </TableCell>
                       </TableRow>
                     ))}
