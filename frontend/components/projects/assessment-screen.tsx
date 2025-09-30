@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAssessment, useGenerateReport } from "@/hooks/use-assessment";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
@@ -207,7 +206,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="max-h-[500px]">
+                  <div className="w-full overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -245,7 +244,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                         )}
                       </TableBody>
                     </Table>
-                  </ScrollArea>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
