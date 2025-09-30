@@ -130,7 +130,6 @@ export async function generateAssessmentInsights(
   const response = await client.responses.create({
     model,
     service_tier: serviceTier,
-    max_output_tokens: 800,
     input: [
       {
         role: "user",
