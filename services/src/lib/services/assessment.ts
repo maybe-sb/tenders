@@ -209,19 +209,26 @@ function buildAssessmentPayload(
     }
   });
 
-  const sectionMetadata = new Map<string, SectionEntity>();
+  // Include ALL sections, not just ones with ITT items
+  const uniqueSections = new Map<string, { code: string; name: string; order: number }>();
+
+  // First, add all sections from the database (including those without line items)
   sections.forEach((section) => {
-    sectionMetadata.set(section.sectionId, section);
+    uniqueSections.set(section.sectionId, {
+      code: section.code,
+      name: section.name,
+      order: section.order,
+    });
   });
 
-  const uniqueSections = new Map<string, { code: string; name: string; order: number }>();
+  // Then, add any sections from ITT items that might not be in the sections table
+  // (This is a fallback for data integrity)
   ittItems.forEach((item) => {
     if (!uniqueSections.has(item.sectionId)) {
-      const sectionInfo = sectionMetadata.get(item.sectionId);
       uniqueSections.set(item.sectionId, {
-        code: sectionInfo?.code ?? item.sectionId,
-        name: sectionInfo?.name ?? item.sectionName ?? item.sectionId,
-        order: sectionInfo?.order ?? uniqueSections.size + 1,
+        code: item.sectionId,
+        name: item.sectionName ?? item.sectionId,
+        order: uniqueSections.size + 1,
       });
     }
   });
