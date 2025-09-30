@@ -98,6 +98,7 @@ Your goal is to produce a concise executive assessment with 3 to 4 paragraphs. F
 - Reference specific sections or item codes where possible so the client can investigate quickly.
 - Do not invent data that is not present. If information is missing, state that clearly.
 - Keep the tone professional and practical.
+- Keep the entire response within roughly 250 words so it fits on one screen.
 
 You will receive the full assessment dataset as JSON. Review cross-contractor comparisons carefully before writing.
 
@@ -130,6 +131,7 @@ export async function generateAssessmentInsights(
   const response = await client.responses.create({
     model,
     service_tier: serviceTier,
+    reasoning: { effort: "low" },
     input: [
       {
         role: "user",
