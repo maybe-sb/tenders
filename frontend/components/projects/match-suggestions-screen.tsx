@@ -108,6 +108,7 @@ export function MatchSuggestionsScreen({
       toast.success(variables.status === "accepted" ? "Match accepted" : "Match rejected");
       queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-matches", projectId] });
       setSelectedMatches(prev => {
         const updated = new Set(prev);
         updated.delete(variables.matchId);
@@ -143,6 +144,7 @@ export function MatchSuggestionsScreen({
       }
       queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-matches", projectId] });
       setSelectedMatches(new Set());
     },
     onError: (error) => {
