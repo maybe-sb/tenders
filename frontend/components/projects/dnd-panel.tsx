@@ -100,7 +100,13 @@ function ManualMappingContent({
   onAssignSection,
   emptyState,
 }: ManualMappingContentProps) {
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const filteredSections = useMemo(() => {
@@ -213,7 +219,7 @@ function DraggableResponseCard({ item }: { item: ResponseItem }) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "user-select-none touch-none cursor-grab rounded-md border bg-card p-3 shadow-sm transition hover:border-primary/60 active:cursor-grabbing",
+        "select-none touch-none cursor-grab rounded-md border bg-card p-3 shadow-sm transition hover:border-primary/60 active:cursor-grabbing",
         isDragging && "border-primary bg-primary/5"
       )}
       {...listeners}
