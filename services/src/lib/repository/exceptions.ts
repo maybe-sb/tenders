@@ -112,3 +112,27 @@ export async function upsertProjectException(
 
   return mapToExceptionEntity(record);
 }
+
+export async function findProjectExceptionByResponseItem(
+  ownerSub: string,
+  responseItemId: string
+): Promise<ExceptionEntity | null> {
+  const response = await ddbDocClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: "GSI1",
+      KeyConditionExpression: "GSI1PK = :gsi1pk",
+      ExpressionAttributeValues: {
+        ":gsi1pk": responseItemSk(responseItemId),
+      },
+      ScanIndexForward: false,
+      Limit: 1,
+    })
+  );
+
+  const item = (response.Items ?? [])
+    .filter(isExceptionRecord)
+    .find((record) => record.ownerSub === ownerSub);
+
+  return item ? mapToExceptionEntity(item) : null;
+}

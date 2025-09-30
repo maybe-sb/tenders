@@ -4,216 +4,165 @@ import {
   DndContext,
   DragEndEvent,
   PointerSensor,
-  useDroppable,
   useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ReactNode, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 
-import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { ITTItem, ResponseItem } from "@/types/tenders";
 import { Button } from "@/components/ui/button";
-import { Search, X } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/currency";
+import type { ResponseItem, SectionSummary } from "@/types/tenders";
 
 interface DnDPanelProps {
-  ittItems: ITTItem[];
+  sections: SectionSummary[];
   responseItems: ResponseItem[];
-  onManualMatch: (ittItemId: string, responseItemId: string) => void;
+  onAssignSection: (sectionId: string, responseItemId: string) => void | Promise<void>;
   emptyState?: ReactNode;
 }
 
-// Format hierarchical section information for display
-function formatHierarchy(itt: ITTItem): string {
-  const parts = [];
-
-  // Extract section code from item code (e.g., "5.4.1.13" -> "5")
-  const sectionCode = itt.itemCode.split('.')[0];
-
-  // Add section if available
-  if (itt.sectionName && sectionCode) {
-    parts.push(`${sectionCode}. ${itt.sectionName}`);
-  } else if (itt.sectionName) {
-    parts.push(itt.sectionName);
-  }
-
-  // Add sub-section if available
-  if (itt.subSectionName && itt.subSectionCode) {
-    parts.push(`${itt.subSectionCode}. ${itt.subSectionName}`);
-  } else if (itt.subSectionCode) {
-    parts.push(`Sub-section: ${itt.subSectionCode}`);
-  }
-
-  // Join with arrow if we have multiple parts, otherwise fallback to section code
-  if (parts.length > 0) {
-    return parts.join(" → ");
-  }
-
-  // Fallback to section code if no hierarchy info available
-  return `Section: ${sectionCode}`;
+interface ManualMappingContentProps {
+  layout: "compact" | "expanded";
+  sections: SectionSummary[];
+  responseItems: ResponseItem[];
+  filterText: string;
+  onFilterChange: (value: string) => void;
+  onAssignSection: (sectionId: string, responseItemId: string) => void | Promise<void>;
+  emptyState?: ReactNode;
 }
 
-// Natural sort function for hierarchical item codes like "1.1.1", "1.1.10", "1.2.1"
-function naturalSort(a: string, b: string): number {
-  const aParts = a.split('.').map(part => {
-    const num = parseInt(part, 10);
-    return isNaN(num) ? part : num;
-  });
-  const bParts = b.split('.').map(part => {
-    const num = parseInt(part, 10);
-    return isNaN(num) ? part : num;
-  });
-
-  const maxLength = Math.max(aParts.length, bParts.length);
-
-  for (let i = 0; i < maxLength; i++) {
-    const aPart = aParts[i] || 0;
-    const bPart = bParts[i] || 0;
-
-    if (typeof aPart === 'number' && typeof bPart === 'number') {
-      if (aPart !== bPart) return aPart - bPart;
-    } else {
-      const comparison = String(aPart).localeCompare(String(bPart));
-      if (comparison !== 0) return comparison;
-    }
-  }
-
-  return 0;
-}
-
-export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }: DnDPanelProps) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+export function DnDPanel({ sections, responseItems, onAssignSection, emptyState }: DnDPanelProps) {
   const [filterText, setFilterText] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
-  // Filter and sort ITT items
-  const filteredAndSortedIttItems = useMemo(() => {
-    let filtered = ittItems;
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Manual mapping</h3>
+          <p className="text-sm text-muted-foreground">
+            Assign unmatched response items to the sections they belong to.
+          </p>
+        </div>
+        <Dialog open={expanded} onOpenChange={setExpanded}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              Expand view
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-6xl">
+            <DialogHeader>
+              <DialogTitle>Manual mapping</DialogTitle>
+            </DialogHeader>
+            <ManualMappingContent
+              layout="expanded"
+              sections={sections}
+              responseItems={responseItems}
+              filterText={filterText}
+              onFilterChange={setFilterText}
+              onAssignSection={onAssignSection}
+              emptyState={emptyState}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
 
-    // Apply text filter
-    if (filterText.trim()) {
-      const searchTerm = filterText.toLowerCase().trim();
-      filtered = ittItems.filter(item =>
-        item.itemCode.toLowerCase().includes(searchTerm) ||
-        item.description.toLowerCase().includes(searchTerm) ||
-        item.sectionId.toLowerCase().includes(searchTerm) ||
-        (item.sectionName && item.sectionName.toLowerCase().includes(searchTerm)) ||
-        (item.subSectionCode && item.subSectionCode.toLowerCase().includes(searchTerm)) ||
-        (item.subSectionName && item.subSectionName.toLowerCase().includes(searchTerm))
-      );
+      <ManualMappingContent
+        layout="compact"
+        sections={sections}
+        responseItems={responseItems}
+        filterText={filterText}
+        onFilterChange={setFilterText}
+        onAssignSection={onAssignSection}
+        emptyState={emptyState}
+      />
+    </Card>
+  );
+}
+
+function ManualMappingContent({
+  layout,
+  sections,
+  responseItems,
+  filterText,
+  onFilterChange,
+  onAssignSection,
+  emptyState,
+}: ManualMappingContentProps) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const filteredSections = useMemo(() => {
+    const search = filterText.trim().toLowerCase();
+    const base = [...sections].sort((a, b) => a.order - b.order);
+    if (!search) {
+      return base;
     }
-
-    // Sort by item code using natural sorting
-    return [...filtered].sort((a, b) => naturalSort(a.itemCode, b.itemCode));
-  }, [ittItems, filterText]);
+    return base.filter((section) =>
+      section.code.toLowerCase().includes(search) || section.name.toLowerCase().includes(search)
+    );
+  }, [sections, filterText]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!event.over || !event.active?.id) return;
     const responseItemId = String(event.active.id);
-    const ittItemId = String(event.over.id);
-    onManualMatch(ittItemId, responseItemId);
+    const sectionId = String(event.over.id);
+    onAssignSection(sectionId, responseItemId);
   };
 
-  const clearFilter = () => setFilterText("");
+  const responseListHeight = layout === "expanded" ? "60vh" : "320px";
+  const sectionListHeight = layout === "expanded" ? "60vh" : "320px";
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
       <Card className="p-4">
-        <h3 className="mb-4 text-lg font-semibold">Unmatched Response Items</h3>
-        <ScrollArea className="h-[400px] pr-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-base font-semibold">Unmatched response items</h4>
+          <span className="text-xs text-muted-foreground">Drag an item onto a section</span>
+        </div>
+        <ScrollArea className="mt-4 pr-2" style={{ maxHeight: responseListHeight }}>
           <div className="space-y-3">
-            {responseItems.length === 0 && emptyState}
+            {responseItems.length === 0 ? emptyState : null}
             {responseItems.map((item) => (
-              <DraggableCard key={item.responseItemId} id={item.responseItemId}>
-                <p className="font-medium">{item.description}</p>
-                <p className="text-xs text-muted-foreground">
-                  {item.itemCode ?? "No code"}
-                </p>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  {item.qty !== undefined && (
-                    <span>Qty: {item.qty.toLocaleString()}</span>
-                  )}
-                  {item.unit && (
-                    <span>Unit: {item.unit}</span>
-                  )}
-                  {item.rate !== undefined && (
-                    <span>Rate: ${formatAmount(item.rate)}</span>
-                  )}
-                  {item.amount !== undefined ? (
-                    <span>Amount: ${formatAmount(item.amount)}</span>
-                  ) : item.amountLabel ? (
-                    <span>Amount: {item.amountLabel}</span>
-                  ) : null}
-                </div>
-              </DraggableCard>
+              <DraggableResponseCard key={item.responseItemId} item={item} />
             ))}
           </div>
         </ScrollArea>
       </Card>
+
       <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">ITT Items</h3>
-          <span className="text-sm text-muted-foreground">Drag response items into an ITT row</span>
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="text-base font-semibold">ITT sections</h4>
+          <span className="text-xs text-muted-foreground">Drop a response onto its section</span>
         </div>
 
-        {/* Filter Input */}
-        <div className="relative mt-4">
+        <div className="relative mt-3">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Filter by code, description, section, or sub-section..."
+            placeholder="Filter sections by code or name"
             value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            className="pl-9 pr-9"
+            onChange={(event) => onFilterChange(event.target.value)}
+            className="pl-9"
           />
-          {filterText && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilter}
-              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
         </div>
 
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <ScrollArea className="mt-4 h-[400px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-24">Code</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-24 text-right">Qty</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAndSortedIttItems.map((itt) => (
-                  <DroppableRow key={itt.ittItemId} id={itt.ittItemId}>
-                    <TableCell className="font-medium">{itt.itemCode}</TableCell>
-                    <TableCell>
-                      <p>{itt.description}</p>
-                      <div className="text-xs text-muted-foreground">
-                        {formatHierarchy(itt)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">{itt.qty}</TableCell>
-                  </DroppableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <ScrollArea className="mt-4 pr-2" style={{ maxHeight: sectionListHeight }}>
+            <div className="space-y-3">
+              {filteredSections.map((section) => (
+                <DroppableSectionCard key={section.sectionId} section={section} />
+              ))}
+              {filteredSections.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sections match this filter.</p>
+              ) : null}
+            </div>
           </ScrollArea>
         </DndContext>
       </Card>
@@ -221,9 +170,8 @@ export function DnDPanel({ ittItems, responseItems, onManualMatch, emptyState }:
   );
 }
 
-function DraggableCard({ id, children }: { id: string; children: ReactNode }) {
-  const { transform, listeners, setNodeRef, setActivatorNodeRef, attributes, isDragging } =
-    useDraggable({ id });
+function DraggableResponseCard({ item }: { item: ResponseItem }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.responseItemId });
 
   const style = {
     transform: transform ? CSS.Translate.toString(transform) : undefined,
@@ -234,35 +182,42 @@ function DraggableCard({ id, children }: { id: string; children: ReactNode }) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "rounded-md border bg-card p-3 shadow-sm transition",
-        isDragging && "opacity-70"
+        "cursor-grab rounded-md border bg-card p-3 shadow-sm transition hover:border-primary/60 active:cursor-grabbing",
+        isDragging && "border-primary bg-primary/5"
       )}
+      {...listeners}
+      {...attributes}
     >
-      {children}
-      <Button
-        ref={setActivatorNodeRef}
-        variant="ghost"
-        size="sm"
-        className="mt-2 w-full"
-        type="button"
-        {...listeners}
-        {...attributes}
-      >
-        Drag to match
-      </Button>
+      <p className="font-medium leading-tight">{item.description}</p>
+      <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <span>{item.itemCode ?? "No code"}</span>
+        {item.qty !== undefined && <span>Qty: {item.qty.toLocaleString()}</span>}
+        {item.unit && <span>Unit: {item.unit}</span>}
+        {item.rate !== undefined && <span>Rate: ${formatAmount(item.rate)}</span>}
+        {item.amount !== undefined ? (
+          <span>Amount: ${formatAmount(item.amount)}</span>
+        ) : item.amountLabel ? (
+          <span>Amount: {item.amountLabel}</span>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function DroppableRow({ id, children }: { id: string; children: ReactNode }) {
-  const { isOver, setNodeRef } = useDroppable({ id });
+function DroppableSectionCard({ section }: { section: SectionSummary }) {
+  const { isOver, setNodeRef } = useDroppable({ id: section.sectionId });
 
   return (
-    <TableRow
+    <div
       ref={setNodeRef}
-      className={cn(isOver ? "bg-primary/10" : undefined, "transition-colors")}
+      className={cn(
+        "rounded-md border p-4 transition",
+        isOver ? "border-primary bg-primary/10" : "hover:border-primary/40"
+      )}
     >
-      {children}
-    </TableRow>
+      <p className="text-sm font-semibold leading-tight">
+        {section.code} — {section.name}
+      </p>
+    </div>
   );
 }

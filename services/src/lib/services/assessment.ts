@@ -150,6 +150,19 @@ function buildAssessmentPayload(
     }
   >();
 
+  const sectionAttachmentMap = new Map<
+    string,
+    Array<{
+      responseItemId: string;
+      contractorId: string;
+      contractorName: string;
+      description: string;
+      amount: number | null;
+      amountLabel?: string;
+      note?: string;
+    }>
+  >();
+
   lineItems.forEach((lineItem) => {
     const sectionId = lineItem.ittItem.sectionId;
     if (!sectionTotals.has(sectionId)) {
@@ -171,10 +184,27 @@ function buildAssessmentPayload(
   });
 
   exceptions.forEach((exception) => {
-    if (exception.attachedSectionId) {
-      const sectionData = sectionTotals.get(exception.attachedSectionId);
+    if (exception.sectionId) {
+      const sectionData = sectionTotals.get(exception.sectionId);
       if (sectionData) {
         sectionData.exceptionCount += 1;
+      }
+
+      const responseItem = responseItemMap.get(exception.responseItemId);
+      const contractor = contractorMap.get(exception.contractorId);
+      if (responseItem && contractor) {
+        if (!sectionAttachmentMap.has(exception.sectionId)) {
+          sectionAttachmentMap.set(exception.sectionId, []);
+        }
+        sectionAttachmentMap.get(exception.sectionId)!.push({
+          responseItemId: responseItem.responseItemId,
+          contractorId: contractor.contractorId,
+          contractorName: contractor.name,
+          description: responseItem.description,
+          amount: calculateResponseAmount(responseItem),
+          amountLabel: responseItem.amountLabel,
+          note: exception.note ?? undefined,
+        });
       }
     }
   });
@@ -216,10 +246,25 @@ function buildAssessmentPayload(
     contractorId: exception.contractorId,
     contractorName: contractorMap.get(exception.contractorId)?.name || "Unknown",
     description: exception.description,
-    attachedSectionId: exception.attachedSectionId,
+    attachedSectionId: exception.sectionId,
     amount: exception.amount,
     note: exception.note,
   }));
+
+  const sectionAttachments = Object.fromEntries(
+    Array.from(sectionAttachmentMap.entries()).map(([sectionId, attachments]) => {
+      const sorted = [...attachments].sort((a, b) => {
+        const nameCompare = a.contractorName.localeCompare(b.contractorName, undefined, {
+          sensitivity: "base",
+        });
+        if (nameCompare !== 0) {
+          return nameCompare;
+        }
+        return a.description.localeCompare(b.description, undefined, { sensitivity: "base" });
+      });
+      return [sectionId, sorted];
+    })
+  );
 
   return {
     project: {
@@ -234,6 +279,7 @@ function buildAssessmentPayload(
     sections: sectionSummaries,
     lineItems,
     exceptions: exceptionRecords,
+    sectionAttachments,
   };
 }
 

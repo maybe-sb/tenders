@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAssessment, useGenerateReport } from "@/hooks/use-assessment";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
-import type { AssessmentLineItem, SectionSummary } from "@/types/tenders";
+import type { AssessmentLineItem, SectionAttachmentRecord, SectionSummary } from "@/types/tenders";
 
 interface AssessmentScreenProps {
   projectId: string;
@@ -84,6 +84,18 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
     }
 
     return groupLineItemsBySection(data.lineItems);
+  }, [data]);
+
+  const attachmentsBySection = useMemo(() => {
+    if (!data) {
+      return new Map<string, SectionAttachmentRecord[]>();
+    }
+
+    const map = new Map<string, SectionAttachmentRecord[]>();
+    Object.entries(data.sectionAttachments ?? {}).forEach(([sectionId, attachments]) => {
+      map.set(sectionId, attachments ?? []);
+    });
+    return map;
   }, [data]);
 
   const contractors = data?.contractors ?? [];
@@ -193,6 +205,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
         </TabsList>
         {sectionEntries.map(({ section, headerTitle, headerSubtitle }) => {
           const sectionLines = lineItemsBySection.get(section.sectionId) ?? [];
+          const sectionLevelAttachments = attachmentsBySection.get(section.sectionId) ?? [];
 
           return (
             <TabsContent key={section.sectionId} value={section.sectionId}>
@@ -218,27 +231,57 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sectionLines.length === 0 ? (
+                        {sectionLines.length === 0 && sectionLevelAttachments.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={contractors.length + 2} className="text-center text-muted-foreground">
                               No line items available for this section.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          sectionLines.map((line) => (
-                            <TableRow key={line.ittItem.ittItemId}>
-                              <TableCell className="font-medium">{line.ittItem.itemCode}</TableCell>
-                              <TableCell className="whitespace-pre-line">{line.ittItem.description}</TableCell>
-                              {contractors.map((contractor) => (
-                                <TableCell key={contractor.contractorId} className="text-center">
-                                  {renderResponseAmount(
-                                    line.responses[contractor.contractorId]?.amount,
-                                    line.responses[contractor.contractorId]?.amountLabel
-                                  )}
+                          <>
+                            {sectionLines.map((line) => (
+                              <TableRow key={line.ittItem.ittItemId}>
+                                <TableCell className="font-medium">{line.ittItem.itemCode}</TableCell>
+                                <TableCell className="whitespace-pre-line">{line.ittItem.description}</TableCell>
+                                {contractors.map((contractor) => (
+                                  <TableCell key={contractor.contractorId} className="text-center">
+                                    {renderResponseAmount(
+                                      line.responses[contractor.contractorId]?.amount,
+                                      line.responses[contractor.contractorId]?.amountLabel
+                                    )}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                            {sectionLevelAttachments.length > 0 && sectionLines.length > 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={contractors.length + 2} className="bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Section-level responses
                                 </TableCell>
-                              ))}
-                            </TableRow>
-                          ))
+                              </TableRow>
+                            ) : null}
+                            {sectionLevelAttachments.map((attachment) => (
+                              <TableRow key={`attachment-${section.sectionId}-${attachment.responseItemId}`} className="bg-muted/20">
+                                <TableCell className="font-medium text-muted-foreground">Section item</TableCell>
+                                <TableCell className="whitespace-pre-line">
+                                  <div className="space-y-1">
+                                    <p>{attachment.description}</p>
+                                    <p className="text-xs text-muted-foreground">Assigned via manual section mapping</p>
+                                    {attachment.note ? (
+                                      <p className="text-xs text-muted-foreground">Note: {attachment.note}</p>
+                                    ) : null}
+                                  </div>
+                                </TableCell>
+                                {contractors.map((contractor) => (
+                                  <TableCell key={contractor.contractorId} className="text-center">
+                                    {contractor.contractorId === attachment.contractorId
+                                      ? renderResponseAmount(attachment.amount, attachment.amountLabel)
+                                      : "-"}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </>
                         )}
                       </TableBody>
                     </Table>

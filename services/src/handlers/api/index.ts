@@ -18,6 +18,7 @@ import {
   listProjectResponseItems,
   listProjects,
   updateProject,
+  attachProjectException,
 } from "@/handlers/api/projects";
 import {
   confirmIttUpload,
@@ -36,6 +37,7 @@ interface RouteConfig {
 
 const routes: RouteConfig[] = [
   { method: "GET", pattern: /^\/projects\/(?<projectId>[\w-]+)\/exceptions$/, handler: listProjectExceptions },
+  { method: "POST", pattern: /^\/projects\/(?<projectId>[\w-]+)\/exceptions$/, handler: attachProjectException },
   { method: "GET", pattern: /^\/projects\/(?<projectId>[\w-]+)\/responses\/items$/, handler: listProjectResponseItems },
   { method: "GET", pattern: /^\/projects\/(?<projectId>[\w-]+)\/itt\/items$/, handler: listProjectIttItems },
   { method: "GET", pattern: /^\/projects\/(?<projectId>[\w-]+)\/detail$/, handler: getProjectDetail },

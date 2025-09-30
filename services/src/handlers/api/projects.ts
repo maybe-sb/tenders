@@ -5,8 +5,15 @@ import { listProjectDocuments } from "@/lib/repository/documents";
 import { listProjectContractors } from "@/lib/repository/contractors";
 import { listParseJobs } from "@/lib/repository/parse-jobs";
 import { listProjectIttItems as fetchProjectIttItems } from "@/lib/repository/itt-items";
-import { listProjectResponseItems as fetchProjectResponseItems } from "@/lib/repository/response-items";
-import { listProjectExceptions as fetchProjectExceptions } from "@/lib/repository/exceptions";
+import {
+  getProjectResponseItem,
+  listProjectResponseItems as fetchProjectResponseItems,
+} from "@/lib/repository/response-items";
+import {
+  findProjectExceptionByResponseItem,
+  listProjectExceptions as fetchProjectExceptions,
+  upsertProjectException,
+} from "@/lib/repository/exceptions";
 import { listProjectMatches as fetchProjectMatches } from "@/lib/repository/matches";
 import { listProjectSections } from "@/lib/repository/sections";
 import { toContractorSummary, toDocumentSummary, toParseJobSummary, toIttItemResponse, toResponseItemResponse, toExceptionResponse } from "@/lib/mappers";
@@ -78,6 +85,12 @@ const UPDATE_PROJECT_SCHEMA = z.object({
 
   status: z.enum(["draft", "in_review", "finalized"]).optional(),
 
+});
+
+const ATTACH_EXCEPTION_SCHEMA = z.object({
+  responseItemId: z.string().min(1),
+  sectionId: z.string().min(1).optional(),
+  note: z.string().max(2000).optional().nullable(),
 });
 
 
@@ -231,6 +244,16 @@ export async function listProjectResponseItems(event: ApiEvent, params: Record<s
     );
 
     responseItems = responseItems.filter((item) => !matchedSet.has(item.responseItemId));
+
+    const exceptions = await fetchProjectExceptions(ownerSub, projectId);
+    const sectionAssignedSet = new Set(
+      exceptions
+        .filter((exception) => Boolean(exception.sectionId))
+        .filter((exception) => !contractorFilter || exception.contractorId === contractorFilter)
+        .map((exception) => exception.responseItemId)
+    );
+
+    responseItems = responseItems.filter((item) => !sectionAssignedSet.has(item.responseItemId));
   }
 
   const payload: ResponseItemResponse[] = responseItems.map(toResponseItemResponse);
@@ -313,6 +336,61 @@ export async function listProjectExceptions(event: ApiEvent, params: Record<stri
 }
 
 
+export async function attachProjectException(event: ApiEvent, params: Record<string, string>) {
+
+  const ownerSub = getOwnerSub(event);
+
+  const projectId = getPathParam(params, "projectId");
+
+
+  const project = await getProjectItem(ownerSub, projectId);
+
+  if (!project) {
+
+    return jsonResponse(404, { message: "Project not found" });
+
+  }
+
+
+  const payload = ATTACH_EXCEPTION_SCHEMA.parse(getJsonBody(event));
+
+
+  const responseItem = await getProjectResponseItem(ownerSub, projectId, payload.responseItemId);
+
+  if (!responseItem) {
+
+    return jsonResponse(404, { message: "Response item not found" });
+
+  }
+
+
+  const existingException = await findProjectExceptionByResponseItem(ownerSub, payload.responseItemId);
+
+
+  await upsertProjectException(ownerSub, {
+
+    exceptionId: existingException?.exceptionId,
+
+    projectId,
+
+    responseItemId: responseItem.responseItemId,
+
+    contractorId: responseItem.contractorId,
+
+    sectionId: payload.sectionId ?? undefined,
+
+    note: payload.note ?? undefined,
+
+    amount: typeof responseItem.amount === "number" ? responseItem.amount : undefined,
+
+  });
+
+
+  return jsonResponse(204, null);
+
+}
+
+
 
 export async function updateProject(event: ApiEvent, params: Record<string, string>) {
 
@@ -369,4 +447,3 @@ export async function deleteProject(event: ApiEvent, params: Record<string, stri
   return jsonResponse(204, null);
 
 }
-

@@ -106,6 +106,16 @@ export interface SectionSummary {
   exceptionCount: number;
 }
 
+export interface SectionAttachment {
+  responseItemId: string;
+  contractorId: string;
+  contractorName: string;
+  description: string;
+  amount: number | null;
+  amountLabel?: string;
+  note?: string;
+}
+
 export interface AssessmentPayload {
   project: {
     projectId: string;
@@ -127,4 +137,5 @@ export interface AssessmentPayload {
     amount?: number;
     note?: string;
   }>;
+  sectionAttachments: Record<string, SectionAttachment[]>;
 }

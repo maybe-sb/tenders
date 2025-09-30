@@ -21,7 +21,6 @@ import { MatchSuggestionsScreen } from "@/components/projects/match-suggestions-
 import {
   useProjectDetail,
   useProjectExceptions,
-  useProjectIttItems,
   useUnmatchedResponseItems,
   useProjectUnassignedSummary,
 } from "@/hooks/use-project-detail";
@@ -42,12 +41,11 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { data: detail, isLoading: detailLoading } = useProjectDetail(projectId);
   const [selectedContractorId, setSelectedContractorId] = useState<string | undefined>(undefined);
   const { data: matchesData, isLoading: matchesLoading } = useProjectMatches(projectId, "all", selectedContractorId);
-  const { data: ittItems } = useProjectIttItems(projectId);
   const { data: unmatchedItemsData } = useUnmatchedResponseItems(projectId, selectedContractorId);
   const { data: exceptionsData } = useProjectExceptions(projectId, selectedContractorId);
   const { data: unassignedSummary, isLoading: unassignedSummaryLoading } = useProjectUnassignedSummary(projectId);
 
-  const { acceptMatch, rejectMatch, createManualMatch } = useMatchActions(projectId);
+  const { acceptMatch, rejectMatch } = useMatchActions(projectId);
   const queryClient = useQueryClient();
   const autoMatchStateRef = React.useRef(new Map<string, { fingerprint: string; inFlight: boolean }>());
 
@@ -222,12 +220,28 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     });
   };
 
-  const handleManualMatch = async (ittItemId: string, responseItemId: string) => {
+  const handleAssignToSection = async (sectionId: string, responseItemId: string) => {
     try {
-      await createManualMatch.mutateAsync({ ittItemId, responseItemId });
-      toast.success("Manual match recorded");
+      await api.attachException(projectId, { responseItemId, sectionId });
+      toast.success("Response assigned to section");
+
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) &&
+          query.queryKey[0] === "project-response-items" &&
+          query.queryKey[1] === projectId,
+      });
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) &&
+          query.queryKey[0] === "project-exceptions" &&
+          query.queryKey[1] === projectId,
+      });
+      queryClient.invalidateQueries({ queryKey: ["project-unmatched-summary", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-assessment", projectId] });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create manual match";
+      const message = error instanceof Error ? error.message : "Failed to assign response";
       toast.error(message);
     }
   };
@@ -405,9 +419,9 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
         </TabsContent>
         <TabsContent value="manual">
           <DnDPanel
-            ittItems={ittItems ?? []}
+            sections={detail.sections ?? []}
             responseItems={responseItems}
-            onManualMatch={handleManualMatch}
+            onAssignSection={handleAssignToSection}
             emptyState={manualEmptyState}
           />
         </TabsContent>
