@@ -89,12 +89,15 @@ export async function handler(event: SQSEvent) {
             // Convert AI response to domain models and persist
             if (documentType === "itt") {
               const parsedItems = mapAIResponseToIttItems(aiResponse);
+              // Only create top-level sections (without dots) as Section entities
+              // Subsections remain as metadata on ITT items (subSectionCode, subSectionName)
+              const topLevelSections = (aiResponse.sections ?? []).filter(s => !s.code.includes('.'));
               ingestedCount = await replaceIttItems(
                 ownerSub,
                 projectId,
                 document.docId,
                 parsedItems,
-                aiResponse.sections ?? []
+                topLevelSections
               );
             } else if (documentType === "response") {
               const contractor = contractorId ?? document.contractorId;
