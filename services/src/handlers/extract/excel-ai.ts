@@ -89,7 +89,13 @@ export async function handler(event: SQSEvent) {
             // Convert AI response to domain models and persist
             if (documentType === "itt") {
               const parsedItems = mapAIResponseToIttItems(aiResponse);
-              ingestedCount = await replaceIttItems(ownerSub, projectId, document.docId, parsedItems);
+              ingestedCount = await replaceIttItems(
+                ownerSub,
+                projectId,
+                document.docId,
+                parsedItems,
+                aiResponse.sections ?? []
+              );
             } else if (documentType === "response") {
               const contractor = contractorId ?? document.contractorId;
               if (!contractor) {

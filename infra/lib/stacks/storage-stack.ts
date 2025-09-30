@@ -19,7 +19,7 @@ export class StorageStack extends Stack {
 
     this.excelQueue = new Queue(this, "ExcelUploadQueue", {
       queueName: `tenders-excel-uploads-${props.envName}`,
-      visibilityTimeout: Duration.minutes(5),
+      visibilityTimeout: Duration.minutes(20),
     });
 
     this.pdfQueue = new Queue(this, "PdfUploadQueue", {
@@ -53,12 +53,6 @@ export class StorageStack extends Stack {
       EventType.OBJECT_CREATED,
       new SqsDestination(this.excelQueue),
       { suffix: ".xlsx" }
-    );
-
-    this.uploadsBucket.addEventNotification(
-      EventType.OBJECT_CREATED,
-      new SqsDestination(this.excelQueue),
-      { suffix: ".xls" }
     );
 
     this.uploadsBucket.addEventNotification(
