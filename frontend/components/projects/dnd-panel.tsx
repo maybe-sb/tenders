@@ -3,12 +3,15 @@
 import {
   DndContext,
   DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
   PointerSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { closestCenter } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ReactNode, useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -97,7 +100,8 @@ function ManualMappingContent({
   onAssignSection,
   emptyState,
 }: ManualMappingContentProps) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor));
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const filteredSections = useMemo(() => {
     const search = filterText.trim().toLowerCase();
@@ -110,11 +114,22 @@ function ManualMappingContent({
     );
   }, [sections, filterText]);
 
+  const handleDragStart = (event: DragStartEvent) => {
+    if (event.active?.id) {
+      setActiveId(String(event.active.id));
+    }
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
     if (!event.over || !event.active?.id) return;
     const responseItemId = String(event.active.id);
     const sectionId = String(event.over.id);
     onAssignSection(sectionId, responseItemId);
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
   };
 
   const responseListHeight = layout === "expanded" ? "60vh" : "320px";
@@ -158,7 +173,13 @@ function ManualMappingContent({
           />
         </div>
 
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
           <ScrollArea className="mt-4 pr-2" style={{ maxHeight: sectionListHeight }}>
             <div className="space-y-3">
               {filteredSections.map((section) => (
@@ -169,6 +190,11 @@ function ManualMappingContent({
               ) : null}
             </div>
           </ScrollArea>
+          <DragOverlay>
+            {activeId ? (
+              <DraggingPreview item={responseItems.find((item) => item.responseItemId === activeId)} />
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </Card>
     </div>
@@ -223,6 +249,19 @@ function DroppableSectionCard({ section }: { section: SectionSummary }) {
       <p className="text-sm font-semibold leading-tight">
         {section.code} — {section.name}
       </p>
+    </div>
+  );
+}
+
+function DraggingPreview({ item }: { item?: ResponseItem }) {
+  if (!item) {
+    return null;
+  }
+
+  return (
+    <div className="pointer-events-none w-64 rounded-md border bg-card p-3 shadow-lg">
+      <p className="text-sm font-medium leading-tight">{item.description}</p>
+      <p className="text-xs text-muted-foreground">{item.itemCode ?? "No code"}</p>
     </div>
   );
 }
