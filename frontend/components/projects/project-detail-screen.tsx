@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet, UploadCloud, Eye } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -11,7 +12,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UploadCard } from "@/components/projects/upload-card";
 import { MatchReviewTable } from "@/components/projects/match-review-table";
@@ -47,6 +47,8 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { data: exceptionsData } = useProjectExceptions(projectId, selectedContractorId);
 
   const { acceptMatch, rejectMatch, createManualMatch } = useMatchActions(projectId);
+  const queryClient = useQueryClient();
+  const autoMatchStateRef = React.useRef(new Map<string, { fingerprint: string; inFlight: boolean }>());
 
   const [contractorName, setContractorName] = useState("");
 
@@ -67,8 +69,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     });
   }, [contractors]);
 
-  const selectedContractor = contractors.find((contractor) => contractor.contractorId === selectedContractorId) ?? null;
-
   const responseItems = selectedContractorId ? unmatchedItemsData ?? [] : [];
   const matches = selectedContractorId ? matchesData ?? [] : [];
   const exceptions = selectedContractorId ? exceptionsData ?? [] : [];
@@ -78,6 +78,55 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   const matchedItems = detail?.stats?.matchedItems ?? 0;
   const unassignedItems = detail?.stats?.unmatchedItems ?? 0;
+
+  React.useEffect(() => {
+    if (!detail?.documents) {
+      return;
+    }
+
+    detail.documents
+      .filter(
+        (doc) =>
+          doc.type === "response" &&
+          doc.parseStatus === "parsed" &&
+          Boolean(doc.contractorId)
+      )
+      .forEach((doc) => {
+        const fingerprint = `${doc.docId}:${doc.parseStatus}:${doc.uploadedAt}`;
+        const current = autoMatchStateRef.current.get(doc.docId);
+
+        if (current && current.fingerprint === fingerprint && !current.inFlight) {
+          return;
+        }
+
+        if (current && current.fingerprint === fingerprint && current.inFlight) {
+          return;
+        }
+
+        autoMatchStateRef.current.set(doc.docId, { fingerprint, inFlight: true });
+
+        api
+          .triggerAutoMatch(projectId, { contractorId: doc.contractorId })
+          .then(() => {
+            queryClient.invalidateQueries({
+              predicate: (query) =>
+                Array.isArray(query.queryKey) &&
+                query.queryKey[0] === "match-suggestions" &&
+                query.queryKey[1] === projectId,
+            });
+          })
+          .catch((error) => {
+            console.error("Failed to trigger auto-match", error);
+            autoMatchStateRef.current.delete(doc.docId);
+          })
+          .finally(() => {
+            const stored = autoMatchStateRef.current.get(doc.docId);
+            if (stored && stored.fingerprint === fingerprint) {
+              autoMatchStateRef.current.set(doc.docId, { fingerprint, inFlight: false });
+            }
+          });
+      });
+  }, [detail?.documents, projectId, queryClient]);
 
   const handleIttUpload = async (file: File) => {
     try {
@@ -266,33 +315,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
         </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-        {contractors.length > 0 ? (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Contractor</span>
-            <Select
-              value={selectedContractorId ?? ""}
-              onValueChange={(value) => setSelectedContractorId(value)}
-            >
-              <SelectTrigger className="w-full sm:w-64">
-                <SelectValue placeholder="Select contractor" />
-              </SelectTrigger>
-              <SelectContent>
-                {contractors.map((contractor) => (
-                  <SelectItem key={contractor.contractorId} value={contractor.contractorId}>
-                    {contractor.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Upload a contractor response to enable matching workflows.
-          </p>
-        )}
-      </div>
-
       <Tabs defaultValue="auto-match" className="space-y-4">
         <TabsList>
           <TabsTrigger value="auto-match">Auto-Match & Review</TabsTrigger>
@@ -304,7 +326,8 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           <MatchSuggestionsScreen
             projectId={projectId}
             contractorId={selectedContractorId}
-            contractorName={selectedContractor?.name}
+            contractors={contractors}
+            onSelectContractor={setSelectedContractorId}
           />
         </TabsContent>
         <TabsContent value="matches" className="space-y-4">

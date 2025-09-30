@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Loader2, Play, Check } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, Check } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,14 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatAmount } from "@/lib/currency";
-import { MatchSuggestion, MatchStatus } from "@/types/tenders";
+import { MatchSuggestion, MatchStatus, ContractorSummary } from "@/types/tenders";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MatchSuggestionsScreenProps {
   projectId: string;
   contractorId?: string;
-  contractorName?: string | null;
+  contractors: ContractorSummary[];
+  onSelectContractor: (contractorId: string) => void;
 }
 
 interface CommentDialogState {
@@ -28,7 +30,12 @@ interface CommentDialogState {
   action: "accept" | "reject" | null;
 }
 
-export function MatchSuggestionsScreen({ projectId, contractorId, contractorName }: MatchSuggestionsScreenProps) {
+export function MatchSuggestionsScreen({
+  projectId,
+  contractorId,
+  contractors,
+  onSelectContractor,
+}: MatchSuggestionsScreenProps) {
   const queryClient = useQueryClient();
 
   const statusFilter = "all" as const;
@@ -44,6 +51,13 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
   React.useEffect(() => {
     setSelectedMatches(new Set());
   }, [contractorId]);
+
+  const contractorName = React.useMemo(() => {
+    if (!contractorId) {
+      return null;
+    }
+    return contractors.find((contractor) => contractor.contractorId === contractorId)?.name ?? null;
+  }, [contractorId, contractors]);
 
   // Column width state for resizable columns
   const [columnWidths, setColumnWidths] = useState({
@@ -84,21 +98,6 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
       default:
         return suggestion.confidence >= 1.0;
     }
-  });
-
-  // Trigger auto-match mutation
-  const autoMatchMutation = useMutation({
-    mutationFn: () => api.triggerAutoMatch(projectId, { contractorId }),
-    onSuccess: () => {
-      toast.success("Auto-match started. The system is generating match suggestions.");
-      // Refresh suggestions after a delay
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
-      }, 3000);
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to start auto-matching");
-    },
   });
 
   // Update match status mutation
@@ -313,7 +312,7 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
     return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground">
-          Select a contractor to view and run auto-match suggestions.
+          Upload a contractor response to enable matching workflows.
         </CardContent>
       </Card>
     );
@@ -334,22 +333,17 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
   return (
     <div className="space-y-6">
       {/* Header with stats and actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Auto-Match & Review</h2>
           <p className="text-muted-foreground">
-            Review high-confidence matches for {contractorName ?? "this contractor"} and bulk accept obvious suggestions
+            Review high-confidence matches for {contractorName ?? "this contractor"}. Matches refresh automatically after parsing.
           </p>
           <Badge
-            variant={autoMatchMutation.isPending ? "secondary" : isFetching && !isLoading ? "outline" : "outline"}
+            variant={isFetching && !isLoading ? "secondary" : "outline"}
             className="mt-2 inline-flex items-center gap-2"
           >
-            {autoMatchMutation.isPending ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Auto-match running…
-              </>
-            ) : isFetching && !isLoading ? (
+            {isFetching && !isLoading ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Updating suggestions…
@@ -362,12 +356,29 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
             )}
           </Badge>
         </div>
-        <div className="flex gap-2">
-          {selectedMatches.size > 0 && (
-            <Button
-              onClick={handleBulkAccept}
-              disabled={bulkAcceptMutation.isPending}
-              className="gap-2 bg-green-600 hover:bg-green-700"
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end md:gap-3">
+          {contractors.length > 0 ? (
+            <Select value={contractorId ?? ""} onValueChange={(value) => onSelectContractor(value)}>
+              <SelectTrigger className="w-full min-w-[220px] md:w-56">
+                <SelectValue placeholder="Select contractor" />
+              </SelectTrigger>
+              <SelectContent>
+                {contractors.map((contractor) => (
+                  <SelectItem key={contractor.contractorId} value={contractor.contractorId}>
+                    {contractor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-sm text-muted-foreground">Upload a contractor response to get started.</p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            {selectedMatches.size > 0 && (
+              <Button
+                onClick={handleBulkAccept}
+                disabled={bulkAcceptMutation.isPending}
+                className="gap-2 bg-green-600 hover:bg-green-700"
             >
               {bulkAcceptMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -391,19 +402,7 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
               Accept All
             </Button>
           )}
-          <Button
-            onClick={() => autoMatchMutation.mutate()}
-            disabled={autoMatchMutation.isPending}
-            className="gap-2"
-            variant="outline"
-          >
-            {autoMatchMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-            Run Auto-Match
-          </Button>
+          </div>
         </div>
       </div>
 
@@ -468,8 +467,8 @@ export function MatchSuggestionsScreen({ projectId, contractorId, contractorName
           ) : suggestions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               {allSuggestions.length > 0
-                ? "No 100% confidence matches found. Try running auto-match again to generate more suggestions."
-                : "No match suggestions found. Try running auto-match to generate suggestions."}
+                ? "No 100% confidence matches found. Matches will update automatically once new data is available."
+                : "No match suggestions found yet. Matches will appear automatically after parsing completes."}
             </div>
           ) : (
             <div className="overflow-x-auto">
