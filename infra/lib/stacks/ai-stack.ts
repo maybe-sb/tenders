@@ -45,7 +45,7 @@ export class AiStack extends Stack {
       entry: path.join(__dirname, "..", "..", "..", "services", "src", "handlers", "extract", "excel-ai.ts"),
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
-      timeout: Duration.minutes(5),
+      timeout: Duration.minutes(15),
       memorySize: 2048,
       tracing: Tracing.ACTIVE,
       environment: {
