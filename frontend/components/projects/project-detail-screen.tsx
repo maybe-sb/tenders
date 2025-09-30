@@ -23,6 +23,7 @@ import {
   useProjectExceptions,
   useUnmatchedResponseItems,
   useProjectUnassignedSummary,
+  useProjectResponseItems,
 } from "@/hooks/use-project-detail";
 import { useMatchActions, useProjectMatches } from "@/hooks/use-matches";
 import { uploadToPresignedUrl } from "@/lib/upload";
@@ -44,6 +45,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { data: unmatchedItemsData } = useUnmatchedResponseItems(projectId, selectedContractorId);
   const { data: exceptionsData } = useProjectExceptions(projectId, selectedContractorId);
   const { data: unassignedSummary, isLoading: unassignedSummaryLoading } = useProjectUnassignedSummary(projectId);
+  const { data: allResponseItems } = useProjectResponseItems(projectId);
 
   const { acceptMatch, rejectMatch } = useMatchActions(projectId);
   const queryClient = useQueryClient();
@@ -109,16 +111,17 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     return unassignedItemsFromStats;
   }, [contractorUnassignedBreakdown, unassignedItemsFromStats, unassignedSummary]);
 
-  const sectionAttachmentCount = data?.sectionAttachments
-    ? Object.values(data.sectionAttachments).reduce((sum, attachments) => sum + (attachments?.length ?? 0), 0)
-    : 0;
+  const totalResponseItems = React.useMemo(() => {
+    if (allResponseItems) {
+      return allResponseItems.length;
+    }
+    return matchedItemsFromStats + unassignedItemsFromStats;
+  }, [allResponseItems, matchedItemsFromStats, unassignedItemsFromStats]);
 
-  const totalResolved = React.useMemo(() => matchedItemsFromStats + sectionAttachmentCount, [matchedItemsFromStats, sectionAttachmentCount]);
-
-  const totalItems = React.useMemo(() => {
-    const baselineUnassigned = unassignedSummary ? totalUnassigned : unassignedItemsFromStats;
-    return totalResolved + baselineUnassigned;
-  }, [totalResolved, unassignedSummary, totalUnassigned, unassignedItemsFromStats]);
+  const totalResolved = React.useMemo(() => {
+    const resolved = totalResponseItems - totalUnassigned;
+    return resolved > 0 ? resolved : 0;
+  }, [totalResponseItems, totalUnassigned]);
 
   React.useEffect(() => {
     if (!detail?.documents) {
@@ -307,7 +310,8 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
           <AssessmentCompletionCard
             resolvedCount={totalResolved}
-            totalCount={totalItems}
+            unassignedCount={totalUnassigned}
+            totalCount={totalResponseItems}
             breakdown={contractorUnassignedBreakdown}
             breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
             projectId={projectId}
@@ -424,12 +428,14 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
 function AssessmentCompletionCard({
   resolvedCount,
+  unassignedCount,
   totalCount,
   breakdown,
   breakdownLoading,
   projectId,
 }: {
   resolvedCount: number;
+  unassignedCount: number;
   totalCount: number;
   breakdown: Array<{ contractorId: string; name: string; unassigned: number }>;
   breakdownLoading: boolean;
@@ -447,7 +453,7 @@ function AssessmentCompletionCard({
       <CardContent>
         <div className="grid gap-8 lg:grid-cols-[minmax(0,220px),1fr] lg:items-center">
           <div className="flex flex-col items-center gap-6">
-            <CompletionDonut resolvedCount={resolvedCount} totalCount={totalCount} />
+            <CompletionDonut resolvedCount={resolvedCount} unassignedCount={unassignedCount} totalCount={totalCount} />
             <div className="text-center text-sm text-muted-foreground">
               <p>
                 <span className="text-base font-semibold text-foreground">{completionPercent}%</span> completed
@@ -469,9 +475,11 @@ function AssessmentCompletionCard({
 
 function CompletionDonut({
   resolvedCount,
+  unassignedCount,
   totalCount,
 }: {
   resolvedCount: number;
+  unassignedCount: number;
   totalCount: number;
 }) {
   const completionRatio = totalCount > 0 ? resolvedCount / totalCount : 0;
@@ -513,8 +521,8 @@ function CompletionDonut({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
-        <span className="text-4xl font-semibold text-foreground">{resolvedCount.toLocaleString()}</span>
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">Items handled</span>
+        <span className="text-4xl font-semibold text-foreground">{unassignedCount.toLocaleString()}</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">Unassigned items</span>
       </div>
     </div>
   );

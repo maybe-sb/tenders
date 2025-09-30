@@ -47,3 +47,12 @@ export function useProjectUnassignedSummary(projectId: string) {
     refetchInterval: 8000,
   });
 }
+
+export function useProjectResponseItems(projectId: string) {
+  return useQuery<ResponseItem[]>({
+    queryKey: ["project-response-items", projectId, "all"],
+    queryFn: () => api.listResponseItems(projectId),
+    enabled: Boolean(projectId),
+    refetchInterval: 15000,
+  });
+}
