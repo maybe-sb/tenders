@@ -137,7 +137,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
     Boolean(insightsError);
 
   const insightsDescription = generateInsights.isPending
-    ? "Generating insights with GPT-5..."
+    ? "Generating insights..."
     : insightsData
       ? `Generated ${new Date(insightsData.generatedAt).toLocaleString()} using ${insightsData.model}${
           insightsData.truncated ? " (partial dataset)" : ""
