@@ -110,14 +110,11 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <Link href={`/projects/${projectId}`} className="text-primary underline-offset-4 hover:underline">
-              ← Back to project
-            </Link>
-            <span className="hidden md:inline">Compare contractor responses by section and line item.</span>
-          </div>
+          <Link href={`/projects/${projectId}`} className="text-sm text-primary underline-offset-4 hover:underline">
+            ← Back to project
+          </Link>
           <h1 className="text-3xl font-semibold">Assessment</h1>
-          <p className="text-sm text-muted-foreground md:hidden">
+          <p className="text-sm text-muted-foreground">
             Compare contractor responses by section and line item.
           </p>
         </div>
