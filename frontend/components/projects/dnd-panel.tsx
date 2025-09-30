@@ -187,7 +187,7 @@ function DraggableResponseCard({ item }: { item: ResponseItem }) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "user-select-none cursor-grab rounded-md border bg-card p-3 shadow-sm transition hover:border-primary/60 active:cursor-grabbing",
+        "user-select-none touch-none cursor-grab rounded-md border bg-card p-3 shadow-sm transition hover:border-primary/60 active:cursor-grabbing",
         isDragging && "border-primary bg-primary/5"
       )}
       {...listeners}
