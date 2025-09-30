@@ -14,6 +14,7 @@ import {
 import { closestCenter } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ReactNode, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,7 @@ export function DnDPanel({ sections, responseItems, onAssignSection, emptyState 
               Expand view
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-[95vw]">
+          <DialogContent className="max-w-[95vw] sm:max-w-[95vw]">
             <DialogHeader>
               <DialogTitle>Manual mapping</DialogTitle>
             </DialogHeader>
@@ -141,6 +142,14 @@ function ManualMappingContent({
   const responseListHeight = layout === "expanded" ? "60vh" : "320px";
   const sectionListHeight = layout === "expanded" ? "60vh" : "320px";
 
+  const dragOverlay = (
+    <DragOverlay>
+      {activeId ? (
+        <DraggingPreview item={responseItems.find((item) => item.responseItemId === activeId)} />
+      ) : null}
+    </DragOverlay>
+  );
+
   return (
     <DndContext
       sensors={sensors}
@@ -198,11 +207,9 @@ function ManualMappingContent({
           </ScrollArea>
         </Card>
       </div>
-      <DragOverlay>
-        {activeId ? (
-          <DraggingPreview item={responseItems.find((item) => item.responseItemId === activeId)} />
-        ) : null}
-      </DragOverlay>
+      {layout === "expanded" && typeof document !== "undefined"
+        ? createPortal(dragOverlay, document.body)
+        : dragOverlay}
     </DndContext>
   );
 }
