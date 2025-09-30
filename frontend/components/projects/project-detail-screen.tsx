@@ -76,6 +76,9 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     ? <p className="text-sm text-muted-foreground">All response items matched.</p>
     : <p className="text-sm text-muted-foreground">Select a contractor to manage manual matches.</p>;
 
+  const matchedItems = detail?.stats?.matchedItems ?? 0;
+  const unassignedItems = detail?.stats?.unmatchedItems ?? 0;
+
   const handleIttUpload = async (file: File) => {
     try {
       const { upload } = await api.requestIttUpload(projectId, { fileName: file.name });
@@ -149,8 +152,8 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   return (
     <div className="space-y-8">
-      <div>
-        <Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-2xl font-semibold">
               <FileSpreadsheet className="h-6 w-6" />
@@ -159,7 +162,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
             <CardDescription>Project overview</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-4">
               <span>Created: {new Date(detail.createdAt).toLocaleDateString()}</span>
               <span>Updated: {new Date(detail.updatedAt).toLocaleString()}</span>
             </div>
@@ -172,6 +175,11 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
             <StatusBadge status={detail.status} />
           </CardContent>
         </Card>
+        <AssessmentCompletionCard
+          matchedItems={matchedItems}
+          unassignedItems={unassignedItems}
+          projectId={projectId}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -338,6 +346,98 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           <ExceptionsList exceptions={exceptions} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function AssessmentCompletionCard({
+  matchedItems,
+  unassignedItems,
+  projectId,
+}: {
+  matchedItems: number;
+  unassignedItems: number;
+  projectId: string;
+}) {
+  const totalItems = matchedItems + unassignedItems;
+  const completionPercent = totalItems > 0 ? Math.round((matchedItems / totalItems) * 100) : 0;
+
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle>Assessment completion overview</CardTitle>
+        <CardDescription>Matched items versus remaining work.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col items-center gap-6">
+          <CompletionDonut matchedItems={matchedItems} unassignedItems={unassignedItems} />
+          <div className="text-center text-sm text-muted-foreground">
+            <p>
+              <span className="text-base font-semibold text-foreground">{completionPercent}%</span> completed
+            </p>
+            <p>
+              {matchedItems.toLocaleString()} matched out of {totalItems.toLocaleString()} total items.
+            </p>
+          </div>
+          <Button asChild className="w-full sm:w-auto">
+            <Link href={`/projects/${projectId}/assessment`}>View assessment report</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompletionDonut({
+  matchedItems,
+  unassignedItems,
+}: {
+  matchedItems: number;
+  unassignedItems: number;
+}) {
+  const total = matchedItems + unassignedItems;
+  const completionRatio = total > 0 ? matchedItems / total : 0;
+  const size = 176;
+  const strokeWidth = 18;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - completionRatio * circumference;
+
+  return (
+    <div className="relative h-44 w-44">
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        className="h-full w-full"
+        role="img"
+        aria-label={`Assessment ${Math.round(completionRatio * 100)} percent complete`}
+      >
+        <circle
+          className="text-muted-foreground/20"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+        />
+        <circle
+          className="text-primary"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeLinecap="round"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
+        <span className="text-4xl font-semibold text-foreground">{unassignedItems.toLocaleString()}</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">Unassigned items</span>
+      </div>
     </div>
   );
 }
