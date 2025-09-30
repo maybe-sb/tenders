@@ -51,9 +51,14 @@ export async function listMatches(event: ApiEvent, params: Record<string, string
   const contractorParam = getQueryParam(event, "contractor");
   const contractorFilter = contractorParam && contractorParam !== "all" ? contractorParam : undefined;
 
-  let matches = await fetchProjectMatches(ownerSub, projectId, { status: statusFilter === "reviewable" ? "all" : statusFilter });
+  const allMatches = await fetchProjectMatches(ownerSub, projectId, { status: "all" });
 
-  // Filter out accepted and manual matches for "reviewable" status
+  let matches = allMatches;
+
+  if (statusFilter && statusFilter !== "all" && statusFilter !== "reviewable") {
+    matches = matches.filter(match => match.status === statusFilter);
+  }
+
   if (statusFilter === "reviewable") {
     matches = matches.filter(match => match.status !== "accepted" && match.status !== "manual");
   }
@@ -74,7 +79,8 @@ export async function listMatches(event: ApiEvent, params: Record<string, string
     : matches;
 
   const resolvedResponseItems = new Set(
-    filteredMatches
+    allMatches
+      .filter(match => (contractorFilter ? match.contractorId === contractorFilter : true))
       .filter(match => match.status === "accepted" || match.status === "manual")
       .map(match => match.responseItemId)
   );
