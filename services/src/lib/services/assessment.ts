@@ -135,12 +135,16 @@ function buildAssessmentPayload(
   });
 
   // Include manually mapped items (exceptions with sectionId) in contractor totals
+  // Only include if the responseItem doesn't have an amountLabel like "Included"
   exceptions.forEach((exception) => {
     if (exception.sectionId && typeof exception.amount === "number") {
-      contractorTotals.set(
-        exception.contractorId,
-        (contractorTotals.get(exception.contractorId) || 0) + exception.amount
-      );
+      const responseItem = responseItemMap.get(exception.responseItemId);
+      if (!responseItem?.amountLabel) {
+        contractorTotals.set(
+          exception.contractorId,
+          (contractorTotals.get(exception.contractorId) || 0) + exception.amount
+        );
+      }
     }
   });
 
@@ -209,14 +213,15 @@ function buildAssessmentPayload(
 
       sectionData.exceptionCount += 1;
 
-      // Add exception amount to section contractor totals
-      if (typeof exception.amount === "number") {
+      // Lookup responseItem to check for amountLabel
+      const responseItem = responseItemMap.get(exception.responseItemId);
+      const contractor = contractorMap.get(exception.contractorId);
+
+      // Add exception amount to section contractor totals (only if no label like "Included")
+      if (typeof exception.amount === "number" && !responseItem?.amountLabel) {
         sectionData.contractorTotals[exception.contractorId] =
           (sectionData.contractorTotals[exception.contractorId] || 0) + exception.amount;
       }
-
-      const responseItem = responseItemMap.get(exception.responseItemId);
-      const contractor = contractorMap.get(exception.contractorId);
       if (responseItem && contractor) {
         if (!sectionAttachmentMap.has(exception.sectionId)) {
           sectionAttachmentMap.set(exception.sectionId, []);
@@ -278,8 +283,11 @@ function buildAssessmentPayload(
   const otherContractorTotals: Record<string, number> = {};
   unassignedExceptions.forEach((exception) => {
     if (typeof exception.amount === "number") {
-      otherContractorTotals[exception.contractorId] =
-        (otherContractorTotals[exception.contractorId] || 0) + exception.amount;
+      const responseItem = responseItemMap.get(exception.responseItemId);
+      if (!responseItem?.amountLabel) {
+        otherContractorTotals[exception.contractorId] =
+          (otherContractorTotals[exception.contractorId] || 0) + exception.amount;
+      }
     }
   });
 
