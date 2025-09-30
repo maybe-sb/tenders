@@ -17,7 +17,6 @@ import { UploadCard } from "@/components/projects/upload-card";
 import { MatchReviewTable } from "@/components/projects/match-review-table";
 import { DnDPanel } from "@/components/projects/dnd-panel";
 import { ExceptionsList } from "@/components/projects/exceptions-list";
-import { StatusBadge } from "@/components/projects/status-badge";
 import { MatchSuggestionsScreen } from "@/components/projects/match-suggestions-screen";
 import {
   useProjectDetail,
@@ -243,70 +242,73 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
         <Card className="h-full">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3 text-2xl font-semibold">
-              <FileSpreadsheet className="h-6 w-6" />
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-3 text-xl font-semibold">
+              <FileSpreadsheet className="h-5 w-5" />
               {detail.name}
             </CardTitle>
-            <CardDescription>Project overview</CardDescription>
+            <CardDescription className="text-sm">
+              Created {new Date(detail.createdAt).toLocaleDateString()} • Updated {new Date(detail.updatedAt).toLocaleString()}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-4">
-              <span>Created: {new Date(detail.createdAt).toLocaleDateString()}</span>
-              <span>Updated: {new Date(detail.updatedAt).toLocaleString()}</span>
-            </div>
-            <div className="flex flex-wrap gap-4">
-              <StatBlock label="Contractors" value={detail.stats?.contractors ?? 0} />
-              <StatBlock label="ITT Items" value={detail.stats?.ittItems ?? 0} />
-              <StatBlock label="Matched" value={detail.stats?.matchedItems ?? 0} />
-              <StatBlock label="Exceptions" value={detail.stats?.unmatchedItems ?? 0} />
-            </div>
-            <StatusBadge status={detail.status} />
+          <CardContent className="pt-0">
+            <dl className="space-y-1 text-sm text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <dt>Status</dt>
+                <dd className="font-medium text-foreground">{formatProjectStatus(detail.status)}</dd>
+              </div>
+              {detail.currency ? (
+                <div className="flex items-center justify-between">
+                  <dt>Currency</dt>
+                  <dd className="font-medium text-foreground">{detail.currency}</dd>
+                </div>
+              ) : null}
+            </dl>
           </CardContent>
         </Card>
-        <AssessmentCompletionCard
-          matchedItems={totalMatched}
-          unassignedItems={totalUnassigned}
-          breakdown={contractorUnassignedBreakdown}
-          breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
-          projectId={projectId}
-        />
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <UploadCard
-          title="Upload ITT BOQ"
-          description="Upload an Excel file containing the ITT BOQ line items. A new upload supersedes previous data."
-          accept=".xls,.xlsx"
-          onSelectFile={handleIttUpload}
-          disabled={acceptMatch.isPending || rejectMatch.isPending}
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload contractor response</CardTitle>
-            <CardDescription>Provide a contractor name and upload an Excel or PDF file.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium" htmlFor="contractor-name">
-                Contractor name
-              </label>
-              <Input
-                id="contractor-name"
-                placeholder="Acme Construction"
-                value={contractorName}
-                onChange={(event) => setContractorName(event.target.value)}
+        <div className="grid gap-4">
+          <AssessmentCompletionCard
+            matchedItems={totalMatched}
+            unassignedItems={totalUnassigned}
+            breakdown={contractorUnassignedBreakdown}
+            breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
+            projectId={projectId}
+          />
+          <UploadCard
+            title="Upload ITT BOQ"
+            description="Upload an Excel file containing the ITT BOQ line items. A new upload supersedes previous data."
+            accept=".xls,.xlsx"
+            onSelectFile={handleIttUpload}
+            disabled={acceptMatch.isPending || rejectMatch.isPending}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload contractor response</CardTitle>
+              <CardDescription>Provide a contractor name and upload an Excel or PDF file.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium" htmlFor="contractor-name">
+                  Contractor name
+                </label>
+                <Input
+                  id="contractor-name"
+                  placeholder="Acme Construction"
+                  value={contractorName}
+                  onChange={(event) => setContractorName(event.target.value)}
+                />
+              </div>
+              <FilePicker
+                accept=".xls,.xlsx,.pdf"
+                onSelectFile={handleResponseUpload}
+                disabled={contractorName.trim().length === 0}
               />
-            </div>
-            <FilePicker
-              accept=".xls,.xlsx,.pdf"
-              onSelectFile={handleResponseUpload}
-              disabled={contractorName.trim().length === 0}
-            />
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card>
@@ -603,13 +605,12 @@ function statusVariant(status: string): "default" | "secondary" | "destructive" 
   }
 }
 
-function StatBlock({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border bg-muted/30 p-4">
-      <p className="text-xs uppercase text-muted-foreground">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-    </div>
-  );
+function formatProjectStatus(status: string) {
+  return status
+    .replace(/_/g, " ")
+    .split(" ")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function ProjectDetailSkeleton() {
