@@ -162,7 +162,6 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                     </TableHead>
                   ))}
                   <TableHead className="text-center">Total ITT</TableHead>
-                  <TableHead className="text-center">Exceptions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -182,7 +181,6 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                       </TableCell>
                     ))}
                     <TableCell className="text-center">{formatCurrency(section.totalITTAmount)}</TableCell>
-                    <TableCell className="text-center">{section.exceptionCount}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
