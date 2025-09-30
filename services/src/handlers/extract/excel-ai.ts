@@ -172,6 +172,9 @@ function mapAIResponseToIttItems(response: OpenAIExcelResponse): ParsedIttItem[]
   const items: ParsedIttItem[] = [];
   const sections = response.sections || [];
 
+  // Helper to extract top-level section code (before first dot)
+  const extractTopLevelSection = (code: string) => code.split('.')[0];
+
   const sectionMap = new Map<string, { code: string; name: string }>();
   sections.forEach((section) => {
     sectionMap.set(section.code.toLowerCase(), section);
@@ -272,7 +275,9 @@ function mapAIResponseToIttItems(response: OpenAIExcelResponse): ParsedIttItem[]
     const rate = aiItem.rate ?? 0;
     const amount = aiItem.amount ?? qty * rate;
 
-    const sectionCode = state.sectionCode || guessSectionCode || (levels[0] ?? "");
+    // Extract only top-level section code to prevent subsections from becoming Section entities
+    const rawSectionCode = state.sectionCode || guessSectionCode || (levels[0] ?? "");
+    const sectionCode = extractTopLevelSection(rawSectionCode);
     const sectionName = state.sectionName || guessSectionName || sectionMap.get(sectionCode.toLowerCase())?.name || sectionCode;
     const subSectionCode = state.subSectionCode || guessSubCode || (levels.length > 1 ? levels.slice(0, 2).join(".") : "");
     const subSectionName = state.subSectionName || guessSubName || subSectionCode;
