@@ -256,34 +256,20 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
         <Card className="h-full">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-3 text-xl font-semibold">
               <FileSpreadsheet className="h-5 w-5" />
               {detail.name}
             </CardTitle>
-            <CardDescription className="text-sm">
-              Created {new Date(detail.createdAt).toLocaleDateString()} • Updated {new Date(detail.updatedAt).toLocaleString()}
+            <CardDescription className="text-xs text-muted-foreground">
+              Created {new Date(detail.createdAt).toLocaleDateString()} · Updated {new Date(detail.updatedAt).toLocaleString()}
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-0">
-            <dl className="space-y-1 text-sm text-muted-foreground">
-              <div className="flex items-center justify-between">
-                <dt>Status</dt>
-                <dd className="font-medium text-foreground">{formatProjectStatus(detail.status)}</dd>
-              </div>
-              {detail.currency ? (
-                <div className="flex items-center justify-between">
-                  <dt>Currency</dt>
-                  <dd className="font-medium text-foreground">{detail.currency}</dd>
-                </div>
-              ) : null}
-            </dl>
-          </CardContent>
         </Card>
 
-        <div className="grid gap-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,368px)] lg:items-start">
           <AssessmentCompletionCard
             matchedItems={totalMatched}
             unassignedItems={totalUnassigned}
@@ -291,37 +277,39 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
             breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
             projectId={projectId}
           />
-          <UploadCard
-            title="Upload ITT BOQ"
-            description="Upload an Excel file containing the ITT BOQ line items. A new upload supersedes previous data."
-            accept=".xls,.xlsx"
-            onSelectFile={handleIttUpload}
-            disabled={acceptMatch.isPending || rejectMatch.isPending}
-          />
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload contractor response</CardTitle>
-              <CardDescription>Provide a contractor name and upload an Excel or PDF file.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium" htmlFor="contractor-name">
-                  Contractor name
-                </label>
-                <Input
-                  id="contractor-name"
-                  placeholder="Acme Construction"
-                  value={contractorName}
-                  onChange={(event) => setContractorName(event.target.value)}
+          <div className="space-y-4">
+            <UploadCard
+              title="Upload ITT BOQ"
+              description="Upload an Excel file containing the ITT BOQ line items. A new upload supersedes previous data."
+              accept=".xls,.xlsx"
+              onSelectFile={handleIttUpload}
+              disabled={acceptMatch.isPending || rejectMatch.isPending}
+            />
+            <Card>
+              <CardHeader>
+                <CardTitle>Upload contractor response</CardTitle>
+                <CardDescription>Provide a contractor name and upload an Excel or PDF file.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium" htmlFor="contractor-name">
+                    Contractor name
+                  </label>
+                  <Input
+                    id="contractor-name"
+                    placeholder="Acme Construction"
+                    value={contractorName}
+                    onChange={(event) => setContractorName(event.target.value)}
+                  />
+                </div>
+                <FilePicker
+                  accept=".xls,.xlsx,.pdf"
+                  onSelectFile={handleResponseUpload}
+                  disabled={contractorName.trim().length === 0}
                 />
-              </div>
-              <FilePicker
-                accept=".xls,.xlsx,.pdf"
-                onSelectFile={handleResponseUpload}
-                disabled={contractorName.trim().length === 0}
-              />
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
 
@@ -617,14 +605,6 @@ function statusVariant(status: string): "default" | "secondary" | "destructive" 
     default:
       return "outline";
   }
-}
-
-function formatProjectStatus(status: string) {
-  return status
-    .replace(/_/g, " ")
-    .split(" ")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function ProjectDetailSkeleton() {
