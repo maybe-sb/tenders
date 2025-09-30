@@ -339,13 +339,22 @@ function buildAssessmentPayload(
 }
 
 function calculateResponseAmount(responseItem: ResponseItemEntity): number | null {
+  // If there's an explicit amount, use it
   if (typeof responseItem.amount === "number" && !Number.isNaN(responseItem.amount)) {
     return Math.round(responseItem.amount * 100) / 100;
   }
+
+  // If there's a label like "Included", return null so frontend displays the label
+  if (responseItem.amountLabel) {
+    return null;
+  }
+
+  // Only calculate from qty × rate if no amount and no label
   if (typeof responseItem.qty === "number" && typeof responseItem.rate === "number") {
     const calculated = responseItem.qty * responseItem.rate;
     return Number.isFinite(calculated) ? Math.round(calculated * 100) / 100 : null;
   }
+
   return null;
 }
 
