@@ -18,6 +18,8 @@ import type {
   SectionAttachmentRecord,
   SectionSummary,
 } from "@/types/tenders";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface AssessmentScreenProps {
   projectId: string;
@@ -206,15 +208,19 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
               <p className="text-sm text-destructive">{insightsError}</p>
             ) : insightsData ? (
               <div className="space-y-4 text-sm leading-6">
-                {insightsData.insights
-                  .trim()
-                  .split(/\n{2,}/)
-                  .filter(Boolean)
-                  .map((chunk, index) => (
-                    <p key={index} className="whitespace-pre-wrap">
-                      {chunk}
-                    </p>
-                  ))}
+                <ReactMarkdown
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                    ul: ({ children }) => <ul className="list-disc space-y-1 pl-4 marker:text-muted-foreground">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal space-y-1 pl-4 marker:text-muted-foreground">{children}</ol>,
+                    li: ({ children }) => <li className="text-sm leading-6 text-foreground">{children}</li>,
+                    p: ({ children }) => <p className="text-sm leading-6 text-foreground">{children}</p>,
+                  }}
+                >
+                  {insightsData.insights.trim()}
+                </ReactMarkdown>
                 {insightsData.truncated ? (
                   <p className="text-xs text-muted-foreground">
                     Note: only part of the dataset was analyzed due to size limits.
