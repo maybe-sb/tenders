@@ -1,6 +1,6 @@
 import { Duration, Stack, StackProps, CfnOutput } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { Cors, LambdaRestApi } from "aws-cdk-lib/aws-apigateway";
+import { Cors, LambdaRestApi, ResponseType } from "aws-cdk-lib/aws-apigateway";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime, Tracing } from "aws-cdk-lib/aws-lambda";
 import { Bucket } from "aws-cdk-lib/aws-s3";
@@ -68,5 +68,21 @@ export class ApiStack extends Stack {
     });
 
     new CfnOutput(this, "ApiUrl", { value: this.api.url ?? "" });
+
+    const corsResponseHeaders = {
+      "Access-Control-Allow-Origin": "'*'",
+      "Access-Control-Allow-Headers": "'*'",
+      "Access-Control-Allow-Methods": "'*'",
+    } as const;
+
+    this.api.addGatewayResponse("Default4xx", {
+      type: ResponseType.DEFAULT_4XX,
+      responseHeaders: corsResponseHeaders,
+    });
+
+    this.api.addGatewayResponse("Default5xx", {
+      type: ResponseType.DEFAULT_5XX,
+      responseHeaders: corsResponseHeaders,
+    });
   }
 }
