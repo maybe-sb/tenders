@@ -134,6 +134,16 @@ function buildAssessmentPayload(
     });
   });
 
+  // Include manually mapped items (exceptions with sectionId) in contractor totals
+  exceptions.forEach((exception) => {
+    if (exception.sectionId && typeof exception.amount === "number") {
+      contractorTotals.set(
+        exception.contractorId,
+        (contractorTotals.get(exception.contractorId) || 0) + exception.amount
+      );
+    }
+  });
+
   const contractorSummaries: ContractorSummary[] = contractors.map((contractor) => ({
     contractorId: contractor.contractorId,
     name: contractor.name,
@@ -185,9 +195,24 @@ function buildAssessmentPayload(
 
   exceptions.forEach((exception) => {
     if (exception.sectionId) {
-      const sectionData = sectionTotals.get(exception.sectionId);
-      if (sectionData) {
-        sectionData.exceptionCount += 1;
+      let sectionData = sectionTotals.get(exception.sectionId);
+
+      // Initialize section data if it doesn't exist (for sections with only manual mappings)
+      if (!sectionData) {
+        sectionData = {
+          ittTotal: 0,
+          contractorTotals: {},
+          exceptionCount: 0,
+        };
+        sectionTotals.set(exception.sectionId, sectionData);
+      }
+
+      sectionData.exceptionCount += 1;
+
+      // Add exception amount to section contractor totals
+      if (typeof exception.amount === "number") {
+        sectionData.contractorTotals[exception.contractorId] =
+          (sectionData.contractorTotals[exception.contractorId] || 0) + exception.amount;
       }
 
       const responseItem = responseItemMap.get(exception.responseItemId);
