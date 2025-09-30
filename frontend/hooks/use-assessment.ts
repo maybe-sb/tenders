@@ -19,3 +19,9 @@ export function useGenerateReport(projectId: string) {
     mutationFn: () => api.generateReport(projectId),
   });
 }
+
+export function useGenerateInsights(projectId: string) {
+  return useMutation({
+    mutationFn: () => api.generateAssessmentInsights(projectId),
+  });
+}

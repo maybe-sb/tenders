@@ -145,6 +145,13 @@ export interface AssessmentPayload {
   sectionAttachments: Record<string, SectionAttachmentRecord[]>;
 }
 
+export interface AssessmentInsightsResponse {
+  insights: string;
+  generatedAt: string;
+  model: string;
+  truncated: boolean;
+}
+
 export interface ContractorSummary {
   contractorId: string;
   name: string;

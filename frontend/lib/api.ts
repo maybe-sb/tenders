@@ -11,6 +11,7 @@ import {
   ResponseItem,
   TenderProject,
   UploadResponse,
+  AssessmentInsightsResponse,
 } from "@/types/tenders";
 
 const ENV_SCHEMA = z.object({
@@ -159,6 +160,8 @@ export const api = {
   ) => request<void>(`/projects/${projectId}/exceptions`, "POST", payload),
   getAssessment: (projectId: string) =>
     request<AssessmentPayload>(`/projects/${projectId}/assessment`, "GET"),
+  generateAssessmentInsights: (projectId: string) =>
+    request<AssessmentInsightsResponse>(`/projects/${projectId}/assessment/insights`, "POST"),
   generateReport: (projectId: string) =>
     request<{ reportKey: string }>(`/projects/${projectId}/reports`, "POST"),
   getReportDownloadUrl: (projectId: string, reportKey: string) =>

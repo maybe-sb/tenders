@@ -27,7 +27,7 @@ import {
   requestResponseUpload,
 } from "@/handlers/api/uploads";
 import { bulkAcceptMatches, createManualMatch, listMatches, triggerAutoMatch, updateMatchStatus } from "@/handlers/api/match";
-import { generateReport, getAssessment, getReport } from "@/handlers/api/assessment";
+import { generateReport, getAssessment, getReport, generateInsights } from "@/handlers/api/assessment";
 
 interface RouteConfig {
   method: string;
@@ -95,6 +95,11 @@ const routes: RouteConfig[] = [
     method: "GET",
     pattern: /^\/projects\/(?<projectId>[\w-]+)\/assessment$/,
     handler: getAssessment,
+  },
+  {
+    method: "POST",
+    pattern: /^\/projects\/(?<projectId>[\w-]+)\/assessment\/insights$/,
+    handler: generateInsights,
   },
   {
     method: "POST",

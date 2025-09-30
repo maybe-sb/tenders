@@ -10,6 +10,7 @@ import { sendQueueMessage } from "@/lib/queues";
 import { getEnv } from "@/lib/env";
 import { loadAssessment } from "@/lib/services/assessment";
 import { logger } from "@/lib/logger";
+import { generateAssessmentInsights } from "@/lib/services/assessment-insights";
 import { randomUUID } from "node:crypto";
 import { s3Client } from "@/lib/s3";
 
@@ -113,4 +114,33 @@ export async function getReport(event: ApiEvent, params: Record<string, string>)
   );
 
   return jsonResponse(200, { url: signedUrl });
+}
+
+export async function generateInsights(
+  event: ApiEvent,
+  params: Record<string, string>
+): Promise<APIGatewayProxyStructuredResultV2> {
+  const ownerSub = getOwnerSub(event);
+  const projectId = getPathParam(params, "projectId");
+
+  const assessment = await loadAssessment(ownerSub, projectId);
+  if (!assessment) {
+    return jsonResponse(404, { message: "Project not found" });
+  }
+
+  try {
+    const result = await generateAssessmentInsights(projectId, assessment);
+    return jsonResponse(200, {
+      insights: result.insights,
+      generatedAt: new Date().toISOString(),
+      model: result.model,
+      truncated: result.truncated,
+    });
+  } catch (error) {
+    logger.error("Failed to generate assessment insights", {
+      projectId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return jsonResponse(500, { message: "Failed to generate insights" });
+  }
 }

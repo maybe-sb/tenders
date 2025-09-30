@@ -140,3 +140,10 @@ export interface AssessmentPayload {
   }>;
   sectionAttachments: Record<string, SectionAttachment[]>;
 }
+
+export interface AssessmentInsightsResponse {
+  insights: string;
+  generatedAt: string;
+  model: string;
+  truncated: boolean;
+}
