@@ -183,6 +183,23 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                     <TableCell className="text-center">{formatCurrency(section.totalITTAmount)}</TableCell>
                   </TableRow>
                 ))}
+                <TableRow className="border-t-2 font-semibold bg-muted/30">
+                  <TableCell>Total</TableCell>
+                  {contractors.map((contractor) => {
+                    const total = sectionEntries.reduce(
+                      (sum, { section }) => sum + (section.totalsByContractor[contractor.contractorId] ?? 0),
+                      0
+                    );
+                    return (
+                      <TableCell key={contractor.contractorId} className="text-center">
+                        {formatCurrency(total)}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className="text-center">
+                    {formatCurrency(sectionEntries.reduce((sum, { section }) => sum + section.totalITTAmount, 0))}
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           </div>
