@@ -109,13 +109,16 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     return unassignedItemsFromStats;
   }, [contractorUnassignedBreakdown, unassignedItemsFromStats, unassignedSummary]);
 
-  const totalMatched = React.useMemo(() => {
-    if (unassignedSummary) {
-      const totalItems = Number(detail?.stats?.ittItems ?? matchedItemsFromStats + totalUnassigned);
-      return Math.max(0, totalItems - totalUnassigned);
-    }
-    return matchedItemsFromStats;
-  }, [detail?.stats?.ittItems, matchedItemsFromStats, totalUnassigned, unassignedSummary]);
+  const sectionAttachmentCount = data?.sectionAttachments
+    ? Object.values(data.sectionAttachments).reduce((sum, attachments) => sum + (attachments?.length ?? 0), 0)
+    : 0;
+
+  const totalResolved = React.useMemo(() => matchedItemsFromStats + sectionAttachmentCount, [matchedItemsFromStats, sectionAttachmentCount]);
+
+  const totalItems = React.useMemo(() => {
+    const baselineUnassigned = unassignedSummary ? totalUnassigned : unassignedItemsFromStats;
+    return totalResolved + baselineUnassigned;
+  }, [totalResolved, unassignedSummary, totalUnassigned, unassignedItemsFromStats]);
 
   React.useEffect(() => {
     if (!detail?.documents) {
@@ -302,13 +305,13 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           </Card>
         </div>
 
-        <AssessmentCompletionCard
-          matchedItems={totalMatched}
-          unassignedItems={totalUnassigned}
-          breakdown={contractorUnassignedBreakdown}
-          breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
-          projectId={projectId}
-        />
+          <AssessmentCompletionCard
+            resolvedCount={totalResolved}
+            totalCount={totalItems}
+            breakdown={contractorUnassignedBreakdown}
+            breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
+            projectId={projectId}
+          />
       </div>
 
       <Card>
@@ -420,20 +423,19 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 }
 
 function AssessmentCompletionCard({
-  matchedItems,
-  unassignedItems,
+  resolvedCount,
+  totalCount,
   breakdown,
   breakdownLoading,
   projectId,
 }: {
-  matchedItems: number;
-  unassignedItems: number;
+  resolvedCount: number;
+  totalCount: number;
   breakdown: Array<{ contractorId: string; name: string; unassigned: number }>;
   breakdownLoading: boolean;
   projectId: string;
 }) {
-  const totalItems = matchedItems + unassignedItems;
-  const completionPercent = totalItems > 0 ? Math.round((matchedItems / totalItems) * 100) : 0;
+  const completionPercent = totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0;
   const totalUnassigned = breakdown.reduce((sum, item) => sum + item.unassigned, 0);
 
   return (
@@ -445,13 +447,13 @@ function AssessmentCompletionCard({
       <CardContent>
         <div className="grid gap-8 lg:grid-cols-[minmax(0,220px),1fr] lg:items-center">
           <div className="flex flex-col items-center gap-6">
-            <CompletionDonut matchedItems={matchedItems} unassignedItems={unassignedItems} />
+            <CompletionDonut resolvedCount={resolvedCount} totalCount={totalCount} />
             <div className="text-center text-sm text-muted-foreground">
               <p>
                 <span className="text-base font-semibold text-foreground">{completionPercent}%</span> completed
               </p>
               <p>
-                {matchedItems.toLocaleString()} matched out of {totalItems.toLocaleString()} total items.
+                {resolvedCount.toLocaleString()} handled out of {totalCount.toLocaleString()} total response items.
               </p>
             </div>
             <Button asChild className="w-full sm:w-auto">
@@ -466,14 +468,13 @@ function AssessmentCompletionCard({
 }
 
 function CompletionDonut({
-  matchedItems,
-  unassignedItems,
+  resolvedCount,
+  totalCount,
 }: {
-  matchedItems: number;
-  unassignedItems: number;
+  resolvedCount: number;
+  totalCount: number;
 }) {
-  const total = matchedItems + unassignedItems;
-  const completionRatio = total > 0 ? matchedItems / total : 0;
+  const completionRatio = totalCount > 0 ? resolvedCount / totalCount : 0;
   const size = 176;
   const strokeWidth = 18;
   const radius = (size - strokeWidth) / 2;
@@ -512,8 +513,8 @@ function CompletionDonut({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
-        <span className="text-4xl font-semibold text-foreground">{unassignedItems.toLocaleString()}</span>
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">Unassigned items</span>
+        <span className="text-4xl font-semibold text-foreground">{resolvedCount.toLocaleString()}</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">Items handled</span>
       </div>
     </div>
   );
