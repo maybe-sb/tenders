@@ -375,7 +375,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           <TabsTrigger value="auto-match">Auto-Match & Review</TabsTrigger>
           <TabsTrigger value="matches">Match review</TabsTrigger>
           <TabsTrigger value="manual">Manual mapping</TabsTrigger>
-          <TabsTrigger value="exceptions">Exceptions</TabsTrigger>
+          <TabsTrigger value="exceptions">Unassigned</TabsTrigger>
         </TabsList>
         <TabsContent value="auto-match" className="space-y-4">
           <MatchSuggestionsScreen
@@ -422,7 +422,11 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           />
         </TabsContent>
         <TabsContent value="exceptions">
-          <ExceptionsList exceptions={exceptions} />
+          <ExceptionsList
+            exceptions={exceptions}
+            sections={detail.sections ?? []}
+            onAssignSection={handleAssignToSection}
+          />
         </TabsContent>
       </Tabs>
     </div>
