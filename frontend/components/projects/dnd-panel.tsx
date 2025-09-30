@@ -142,50 +142,50 @@ function ManualMappingContent({
   const sectionListHeight = layout === "expanded" ? "60vh" : "320px";
 
   return (
-    <div
-      className={cn(
-        "mt-4 grid gap-4",
-        layout === "expanded" ? "lg:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]" : "lg:grid-cols-2"
-      )}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
-      <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-base font-semibold">Unmatched response items</h4>
-          <span className="text-xs text-muted-foreground">Drag an item onto a section</span>
-        </div>
-        <ScrollArea className="mt-4 pr-2" style={{ maxHeight: responseListHeight }}>
-          <div className="space-y-3">
-            {responseItems.length === 0 ? emptyState : null}
-            {responseItems.map((item) => (
-              <DraggableResponseCard key={item.responseItemId} item={item} />
-            ))}
+      <div
+        className={cn(
+          "mt-4 grid gap-4",
+          layout === "expanded" ? "lg:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]" : "lg:grid-cols-2"
+        )}
+      >
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-base font-semibold">Unmatched response items</h4>
+            <span className="text-xs text-muted-foreground">Drag an item onto a section</span>
           </div>
-        </ScrollArea>
-      </Card>
+          <ScrollArea className="mt-4 pr-2" style={{ maxHeight: responseListHeight }}>
+            <div className="space-y-3">
+              {responseItems.length === 0 ? emptyState : null}
+              {responseItems.map((item) => (
+                <DraggableResponseCard key={item.responseItemId} item={item} />
+              ))}
+            </div>
+          </ScrollArea>
+        </Card>
 
-      <Card className="p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h4 className="text-base font-semibold">ITT sections</h4>
-          <span className="text-xs text-muted-foreground">Drop a response onto its section</span>
-        </div>
+        <Card className="p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-base font-semibold">ITT sections</h4>
+            <span className="text-xs text-muted-foreground">Drop a response onto its section</span>
+          </div>
 
-        <div className="relative mt-3">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Filter sections by code or name"
-            value={filterText}
-            onChange={(event) => onFilterChange(event.target.value)}
-            className="pl-9"
-          />
-        </div>
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Filter sections by code or name"
+              value={filterText}
+              onChange={(event) => onFilterChange(event.target.value)}
+              className="pl-9"
+            />
+          </div>
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragCancel={handleDragCancel}
-        >
           <ScrollArea className="mt-4 pr-2" style={{ maxHeight: sectionListHeight }}>
             <div className="space-y-3">
               {filteredSections.map((section) => (
@@ -196,14 +196,14 @@ function ManualMappingContent({
               ) : null}
             </div>
           </ScrollArea>
-          <DragOverlay>
-            {activeId ? (
-              <DraggingPreview item={responseItems.find((item) => item.responseItemId === activeId)} />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      </Card>
-    </div>
+        </Card>
+      </div>
+      <DragOverlay>
+        {activeId ? (
+          <DraggingPreview item={responseItems.find((item) => item.responseItemId === activeId)} />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
