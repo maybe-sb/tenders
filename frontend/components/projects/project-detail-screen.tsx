@@ -257,60 +257,58 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   return (
     <div className="space-y-8">
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
-        <Card className="h-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-xl font-semibold">
-              <FileSpreadsheet className="h-5 w-5" />
-              {detail.name}
-            </CardTitle>
-            <CardDescription className="text-xs text-muted-foreground">
-              Created {new Date(detail.createdAt).toLocaleDateString()} · Updated {new Date(detail.updatedAt).toLocaleString()}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,368px)] lg:items-start">
-          <AssessmentCompletionCard
-            matchedItems={totalMatched}
-            unassignedItems={totalUnassigned}
-            breakdown={contractorUnassignedBreakdown}
-            breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
-            projectId={projectId}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-3 text-xl font-semibold">
+                <FileSpreadsheet className="h-5 w-5" />
+                {detail.name}
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Created {new Date(detail.createdAt).toLocaleDateString()} · Updated {new Date(detail.updatedAt).toLocaleString()}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          <UploadCard
+            title="Upload ITT BOQ"
+            description="Upload an Excel file containing the ITT BOQ line items. A new upload supersedes previous data."
+            accept=".xls,.xlsx"
+            onSelectFile={handleIttUpload}
+            disabled={acceptMatch.isPending || rejectMatch.isPending}
           />
-          <div className="space-y-4">
-            <UploadCard
-              title="Upload ITT BOQ"
-              description="Upload an Excel file containing the ITT BOQ line items. A new upload supersedes previous data."
-              accept=".xls,.xlsx"
-              onSelectFile={handleIttUpload}
-              disabled={acceptMatch.isPending || rejectMatch.isPending}
-            />
-            <Card>
-              <CardHeader>
-                <CardTitle>Upload contractor response</CardTitle>
-                <CardDescription>Provide a contractor name and upload an Excel or PDF file.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium" htmlFor="contractor-name">
-                    Contractor name
-                  </label>
-                  <Input
-                    id="contractor-name"
-                    placeholder="Acme Construction"
-                    value={contractorName}
-                    onChange={(event) => setContractorName(event.target.value)}
-                  />
-                </div>
-                <FilePicker
-                  accept=".xls,.xlsx,.pdf"
-                  onSelectFile={handleResponseUpload}
-                  disabled={contractorName.trim().length === 0}
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload contractor response</CardTitle>
+              <CardDescription>Provide a contractor name and upload an Excel or PDF file.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium" htmlFor="contractor-name">
+                  Contractor name
+                </label>
+                <Input
+                  id="contractor-name"
+                  placeholder="Acme Construction"
+                  value={contractorName}
+                  onChange={(event) => setContractorName(event.target.value)}
                 />
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+              <FilePicker
+                accept=".xls,.xlsx,.pdf"
+                onSelectFile={handleResponseUpload}
+                disabled={contractorName.trim().length === 0}
+              />
+            </CardContent>
+          </Card>
         </div>
+
+        <AssessmentCompletionCard
+          matchedItems={totalMatched}
+          unassignedItems={totalUnassigned}
+          breakdown={contractorUnassignedBreakdown}
+          breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
+          projectId={projectId}
+        />
       </div>
 
       <Card>
