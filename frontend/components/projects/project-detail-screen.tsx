@@ -498,8 +498,7 @@ function CompletionDonut({
         aria-label={`Assessment ${Math.round(completionRatio * 100)} percent complete`}
       >
         <circle
-          className="text-muted-foreground/20"
-          stroke="currentColor"
+          stroke="#E2E8F0"
           strokeWidth={strokeWidth}
           fill="transparent"
           cx={size / 2}
@@ -507,8 +506,7 @@ function CompletionDonut({
           r={radius}
         />
         <circle
-          className="text-primary"
-          stroke="currentColor"
+          stroke="#27ABE2"
           strokeWidth={strokeWidth}
           fill="transparent"
           strokeLinecap="round"
@@ -585,8 +583,9 @@ function ContractorUnassignedChart({
             </div>
             <div className="h-2 w-full rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-primary/80"
+                className="h-full rounded-full"
                 style={{
+                  backgroundColor: "#27ABE2",
                   width:
                     unassigned === 0
                       ? "0%"

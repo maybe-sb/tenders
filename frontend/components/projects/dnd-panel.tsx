@@ -241,9 +241,10 @@ function DroppableSectionCard({ section }: { section: SectionSummary }) {
   return (
     <div
       ref={setNodeRef}
+      data-droppable
       className={cn(
         "rounded-md border p-4 transition",
-        isOver ? "border-primary bg-primary/10" : "hover:border-primary/40"
+        isOver ? "border-[#27ABE2] bg-[#27ABE2]/10" : "hover:border-primary/40"
       )}
     >
       <p className="text-sm font-semibold leading-tight">
