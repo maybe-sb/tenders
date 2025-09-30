@@ -6,7 +6,13 @@ import { logger } from "@/lib/logger";
 import { s3Client } from "@/lib/s3";
 import { listProjectDocuments, updateDocumentMetadata } from "@/lib/repository/documents";
 import { listParseJobs, updateParseJob } from "@/lib/repository/parse-jobs";
-import { replaceIttItems, replaceResponseItems, ParsedIttItem, ParsedResponseItem } from "@/lib/services/project-items";
+import {
+  replaceIttItems,
+  replaceResponseItems,
+  ParsedIttItem,
+  ParsedResponseItem,
+  ParsedSection,
+} from "@/lib/services/project-items";
 
 const HEADER_SYNONYMS = {
   itemCode: ["item", "item no", "item number", "item code", "ref", "reference"],
@@ -80,8 +86,8 @@ export async function handler(event: SQSEvent) {
             if (!worksheet) {
               throw new Error("ITT_WORKSHEET_NOT_FOUND");
             }
-            const parsedItems = extractIttItems(worksheet);
-            ingestedCount = await replaceIttItems(ownerSub, projectId, document.docId, parsedItems);
+            const { items: parsedItems, sections: parsedSections } = extractIttItems(worksheet);
+            ingestedCount = await replaceIttItems(ownerSub, projectId, document.docId, parsedItems, parsedSections);
           } else if (documentType === "response") {
             const worksheet = findResponseWorksheet(workbook);
             if (!worksheet) {
@@ -353,7 +359,7 @@ function buildHierarchyMap(
   return hierarchyMap;
 }
 
-function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
+function extractIttItems(worksheet: ExcelJS.Worksheet): { items: ParsedIttItem[]; sections: ParsedSection[] } {
   const { header, headerRowNumber } = findIttHeaders(worksheet);
 
   // Phase 1: Build hierarchy map by scanning all rows for section/sub-section headers
@@ -419,7 +425,14 @@ function extractIttItems(worksheet: ExcelJS.Worksheet): ParsedIttItem[] {
     }
   });
 
-  return items;
+  const sections: ParsedSection[] = [];
+  hierarchyMap.forEach((name, code) => {
+    if (getHierarchyLevel(code) === 1) {
+      sections.push({ code, name });
+    }
+  });
+
+  return { items, sections };
 }
 
 function findResponseWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet | null {

@@ -16,6 +16,11 @@ export interface ParsedIttItem {
   amount: number;
 }
 
+export interface ParsedSection {
+  code?: string;
+  name?: string;
+}
+
 export interface ParsedResponseItem {
   sectionGuess?: string;
   itemCode?: string;
@@ -35,7 +40,8 @@ export async function replaceIttItems(
   ownerSub: string,
   projectId: string,
   docId: string,
-  items: ParsedIttItem[]
+  items: ParsedIttItem[],
+  sectionsMeta: ParsedSection[] = []
 ): Promise<number> {
   const existingSections = await listProjectSections(ownerSub, projectId);
   const sectionByCode = new Map<string, SectionEntity>();
@@ -63,6 +69,11 @@ export async function replaceIttItems(
   }
 
   await deleteProjectIttItems(ownerSub, projectId);
+
+  // Ensure all provided sections exist even if they have no line items
+  for (const meta of sectionsMeta) {
+    await ensureSection(meta.code, meta.name);
+  }
 
   for (const item of items) {
     const section = await ensureSection(item.sectionCode, item.sectionName);
