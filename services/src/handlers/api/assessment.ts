@@ -139,7 +139,8 @@ export async function generateInsights(
   } catch (error) {
     logger.error("Failed to generate assessment insights", {
       projectId,
-      message: error instanceof Error ? error.message : String(error),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
     });
     return jsonResponse(500, { message: "Failed to generate insights" });
   }
