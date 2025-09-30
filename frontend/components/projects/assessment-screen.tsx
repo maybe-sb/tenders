@@ -139,7 +139,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   const insightsDescription = generateInsights.isPending
     ? "Generating insights..."
     : insightsData
-      ? `Generated ${new Date(insightsData.generatedAt).toLocaleString()} using ${insightsData.model}${
+      ? `Generated ${new Date(insightsData.generatedAt).toLocaleString()}${
           insightsData.truncated ? " (partial dataset)" : ""
         }`
       : insightsError
