@@ -18,12 +18,6 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
           Updated {new Date(project.updatedAt).toLocaleDateString()}
         </p>
       </CardHeader>
-      <CardContent className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-        <div>
-          <p className="font-medium text-foreground">Contractors</p>
-          <p>{project.stats?.contractors ?? 0}</p>
-        </div>
-      </CardContent>
       <CardFooter className="flex items-center justify-between border-t px-6 py-4">
         <Link href={`/projects/${project.projectId}`}>
           <Button>Open Project</Button>
