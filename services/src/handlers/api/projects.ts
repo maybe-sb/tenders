@@ -248,7 +248,6 @@ export async function listProjectResponseItems(event: ApiEvent, params: Record<s
     const exceptions = await fetchProjectExceptions(ownerSub, projectId);
     const sectionAssignedSet = new Set(
       exceptions
-        .filter((exception) => Boolean(exception.sectionId))
         .filter((exception) => !contractorFilter || exception.contractorId === contractorFilter)
         .map((exception) => exception.responseItemId)
     );
@@ -297,9 +296,11 @@ export async function listProjectExceptions(event: ApiEvent, params: Record<stri
 
 
 
-  const filteredExceptions = contractorFilter
-    ? exceptions.filter((exception) => exception.contractorId === contractorFilter)
-    : exceptions;
+  // Only show exceptions that are truly unassigned (no sectionId)
+  // Exceptions WITH sectionId are already assigned to a section via drag-and-drop
+  const filteredExceptions = exceptions
+    .filter((exception) => !exception.sectionId)  // Only unassigned
+    .filter((exception) => !contractorFilter || exception.contractorId === contractorFilter);
 
   const responseItemMap = new Map(
 
