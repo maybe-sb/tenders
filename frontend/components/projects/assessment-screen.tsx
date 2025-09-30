@@ -376,8 +376,8 @@ function sortSections(sections: SectionSummary[]) {
 }
 
 function compareSections(a: SectionSummary, b: SectionSummary) {
-  const orderA = Number.isFinite(a.order) ? a.order : Number.POSITIVE_INFINITY;
-  const orderB = Number.isFinite(b.order) ? b.order : Number.POSITIVE_INFINITY;
+  const orderA = getSectionOrder(a);
+  const orderB = getSectionOrder(b);
 
   if (orderA !== orderB) {
     return orderA < orderB ? -1 : 1;
@@ -393,4 +393,30 @@ function compareSections(a: SectionSummary, b: SectionSummary) {
 
 function normalizeSectionCode(code?: string) {
   return (code ?? "").trim();
+}
+
+function getSectionOrder(section: SectionSummary) {
+  const { order, code } = section;
+
+  if (typeof order === "number" && Number.isFinite(order)) {
+    return order;
+  }
+
+  if (typeof order === "string") {
+    const parsed = Number.parseFloat(order);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  const normalizedCode = normalizeSectionCode(code);
+  const numericMatch = normalizedCode.match(/\d+(?:\.\d+)?/);
+  if (numericMatch) {
+    const parsed = Number.parseFloat(numericMatch[0]);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return Number.POSITIVE_INFINITY;
 }
