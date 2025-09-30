@@ -257,7 +257,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   return (
     <div className="space-y-8">
       <div className="grid gap-4 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] lg:items-start">
-        <div className="flex flex-col gap-4">
+        <div className="flex h-full flex-col gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-3 text-xl font-semibold">
@@ -276,12 +276,12 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
             onSelectFile={handleIttUpload}
             disabled={acceptMatch.isPending || rejectMatch.isPending}
           />
-          <Card>
+          <Card className="flex h-full flex-col">
             <CardHeader>
               <CardTitle>Upload contractor response</CardTitle>
               <CardDescription>Provide a contractor name and upload an Excel or PDF file.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="flex flex-1 flex-col justify-between space-y-4">
               <div>
                 <label className="text-sm font-medium" htmlFor="contractor-name">
                   Contractor name
