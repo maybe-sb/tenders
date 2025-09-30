@@ -50,9 +50,10 @@ const schema = {
           quantity: { type: ["number", "null"] },
           rate: { type: ["number", "null"] },
           amount: { type: ["number", "null"] },
+          amount_label: { type: ["string", "null"] },
           section: { type: ["string", "null"] }
         },
-        required: ["item_code", "description", "unit", "quantity", "rate", "amount", "section"]
+        required: ["item_code", "description", "unit", "quantity", "rate", "amount", "amount_label", "section"]
       }
     },
     sections: {
@@ -141,6 +142,12 @@ ${contractorContext}CRITICAL REQUIREMENTS:
 4. Include complete descriptions, item codes, units, quantities
 5. For ITT documents, rates/amounts are typically 0 or missing
 6. Return confidence as decimal between 0-1
+7. IMPORTANT - Amount Column Handling:
+   - If amount column contains a NUMBER: set amount to that number, set amount_label to null
+   - If amount column contains TEXT (e.g., "Included", "N/A", "TBC", "See spec"):
+     * Set amount_label to the exact text value
+     * Set amount to null
+     * DO NOT calculate qty × rate as a substitute
 
 EXTRACTION PROCESS:
 - Review all worksheet names and data structure
@@ -149,6 +156,7 @@ EXTRACTION PROCESS:
 - Preserve complete descriptions and item codes
 - Group by sections where identifiable
 - Set rates/amounts to 0 or null for ITT documents
+- Carefully distinguish between numeric amounts and text labels in amount column
 
 IMPORTANT: Extract EVERY item to resolve the 0 line items issue. Do not limit to samples.
 
@@ -411,7 +419,7 @@ export function transformGPTResponseToSchema(gptResponse: any, documentType: "it
       const qty = coerceNumber(item.quantity, isItt ? 0 : undefined);
       const rate = coerceNumber(item.rate, isItt ? 0 : undefined);
       const amount = coerceNumber(item.amount, isItt ? 0 : undefined);
-      const rawAmountLabel = normaliseString(item.amount);
+      const amountLabel = normaliseString(item.amount_label);
 
       return {
         itemCode: normaliseString(item.item_code),
@@ -422,7 +430,7 @@ export function transformGPTResponseToSchema(gptResponse: any, documentType: "it
         qty,
         rate,
         amount,
-        amountLabel: amount === undefined && rawAmountLabel ? rawAmountLabel : undefined,
+        amountLabel,
         sectionGuess: normaliseString(item.section)
       };
     }),

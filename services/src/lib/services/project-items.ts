@@ -115,6 +115,7 @@ export async function replaceResponseItems(
       qty: item.qty,
       rate: item.rate,
       amount: item.amount,
+      amountLabel: item.amountLabel,
       meta: { docId },
     });
   }
