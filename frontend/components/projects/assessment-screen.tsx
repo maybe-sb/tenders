@@ -73,12 +73,6 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
     }));
   }, [data]);
 
-  const sectionLabelById = useMemo(
-    () =>
-      new Map(sectionEntries.map(({ section, displayName }) => [section.sectionId, displayName])),
-    [sectionEntries]
-  );
-
   const lineItemsBySection = useMemo(() => {
     if (!data) {
       return new Map<string, AssessmentLineItem[]>();
