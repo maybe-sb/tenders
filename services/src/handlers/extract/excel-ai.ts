@@ -236,15 +236,27 @@ function mapAIResponseToIttItems(response: OpenAIExcelResponse): ParsedIttItem[]
     }
 
     if (level === 2 && !hasQuantities(aiItem)) {
-      state.subSectionCode = levels.slice(0, 2).join(".");
-      state.subSectionName = description || guessSubName || state.subSectionCode;
-      if (!state.sectionCode && guessSectionCode) {
-        state.sectionCode = guessSectionCode;
+      // Check if this is a provisional sum or allowance item (should be kept as line item)
+      const isProvisionalItem = description && (
+        description.toLowerCase().includes('provisional') ||
+        description.toLowerCase().includes('allowance') ||
+        description.toLowerCase().includes('sum for') ||
+        description.length > 15  // Substantive description likely indicates a line item
+      );
+
+      if (!isProvisionalItem) {
+        // This is a subsection header, update state and skip
+        state.subSectionCode = levels.slice(0, 2).join(".");
+        state.subSectionName = description || guessSubName || state.subSectionCode;
+        if (!state.sectionCode && guessSectionCode) {
+          state.sectionCode = guessSectionCode;
+        }
+        if (!state.sectionName && guessSectionName) {
+          state.sectionName = guessSectionName;
+        }
+        return;
       }
-      if (!state.sectionName && guessSectionName) {
-        state.sectionName = guessSectionName;
-      }
-      return;
+      // Fall through to add as line item with qty=0
     }
 
     const qty = aiItem.qty ?? 0;
