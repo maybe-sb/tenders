@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import type { ResponseItem } from "@/types/tenders";
 
 export function useProjectDetail(projectId: string) {
   return useQuery({
@@ -35,5 +36,14 @@ export function useProjectExceptions(projectId: string, contractorId?: string) {
     queryKey: ["project-exceptions", projectId, contractorId ?? "none"],
     queryFn: () => api.listExceptions(projectId, { contractorId }),
     enabled: Boolean(projectId && contractorId),
+  });
+}
+
+export function useProjectUnassignedSummary(projectId: string) {
+  return useQuery<ResponseItem[]>({
+    queryKey: ["project-unmatched-summary", projectId],
+    queryFn: () => api.listResponseItems(projectId, { unmatchedOnly: true }),
+    enabled: Boolean(projectId),
+    refetchInterval: 8000,
   });
 }

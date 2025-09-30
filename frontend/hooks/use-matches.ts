@@ -26,6 +26,7 @@ export function useMatchActions(projectId: string) {
     queryClient.invalidateQueries({ queryKey: ["project-itt-items", projectId] });
     queryClient.invalidateQueries({ queryKey: ["project-response-items", projectId] });
     queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-unmatched-summary", projectId] });
   };
 
   const acceptMatch = useMutation({

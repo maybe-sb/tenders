@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileSpreadsheet, UploadCloud, Eye } from "lucide-react";
+import { FileSpreadsheet, UploadCloud, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -24,6 +24,7 @@ import {
   useProjectExceptions,
   useProjectIttItems,
   useUnmatchedResponseItems,
+  useProjectUnassignedSummary,
 } from "@/hooks/use-project-detail";
 import { useMatchActions, useProjectMatches } from "@/hooks/use-matches";
 import { uploadToPresignedUrl } from "@/lib/upload";
@@ -45,6 +46,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { data: ittItems } = useProjectIttItems(projectId);
   const { data: unmatchedItemsData } = useUnmatchedResponseItems(projectId, selectedContractorId);
   const { data: exceptionsData } = useProjectExceptions(projectId, selectedContractorId);
+  const { data: unassignedSummary, isLoading: unassignedSummaryLoading } = useProjectUnassignedSummary(projectId);
 
   const { acceptMatch, rejectMatch, createManualMatch } = useMatchActions(projectId);
   const queryClient = useQueryClient();
@@ -76,8 +78,47 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
     ? <p className="text-sm text-muted-foreground">All response items matched.</p>
     : <p className="text-sm text-muted-foreground">Select a contractor to manage manual matches.</p>;
 
-  const matchedItems = detail?.stats?.matchedItems ?? 0;
-  const unassignedItems = detail?.stats?.unmatchedItems ?? 0;
+  const matchedItemsFromStats = Number(detail?.stats?.matchedItems ?? 0);
+  const unassignedItemsFromStats = Number(detail?.stats?.unmatchedItems ?? 0);
+
+  const contractorUnassignedBreakdown = React.useMemo(() => {
+    const counts = new Map<string, number>();
+
+    if (unassignedSummary) {
+      for (const item of unassignedSummary) {
+        const key = item.contractorId ?? "__unknown__";
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+
+    const results = contractors.map((contractor) => ({
+      contractorId: contractor.contractorId,
+      name: contractor.name,
+      unassigned: counts.get(contractor.contractorId) ?? 0,
+    }));
+
+    const unknownCount = counts.get("__unknown__");
+    if (unknownCount) {
+      results.push({ contractorId: "__unknown__", name: "Unattributed", unassigned: unknownCount });
+    }
+
+    return results.sort((a, b) => b.unassigned - a.unassigned);
+  }, [contractors, unassignedSummary]);
+
+  const totalUnassigned = React.useMemo(() => {
+    if (unassignedSummary) {
+      return contractorUnassignedBreakdown.reduce((sum, item) => sum + item.unassigned, 0);
+    }
+    return unassignedItemsFromStats;
+  }, [contractorUnassignedBreakdown, unassignedItemsFromStats, unassignedSummary]);
+
+  const totalMatched = React.useMemo(() => {
+    if (unassignedSummary) {
+      const totalItems = Number(detail?.stats?.ittItems ?? matchedItemsFromStats + totalUnassigned);
+      return Math.max(0, totalItems - totalUnassigned);
+    }
+    return matchedItemsFromStats;
+  }, [detail?.stats?.ittItems, matchedItemsFromStats, totalUnassigned, unassignedSummary]);
 
   React.useEffect(() => {
     if (!detail?.documents) {
@@ -114,6 +155,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
                 query.queryKey[0] === "match-suggestions" &&
                 query.queryKey[1] === projectId,
             });
+            queryClient.invalidateQueries({ queryKey: ["project-unmatched-summary", projectId] });
           })
           .catch((error) => {
             console.error("Failed to trigger auto-match", error);
@@ -225,8 +267,10 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           </CardContent>
         </Card>
         <AssessmentCompletionCard
-          matchedItems={matchedItems}
-          unassignedItems={unassignedItems}
+          matchedItems={totalMatched}
+          unassignedItems={totalUnassigned}
+          breakdown={contractorUnassignedBreakdown}
+          breakdownLoading={unassignedSummaryLoading && !unassignedSummary}
           projectId={projectId}
         />
       </div>
@@ -376,14 +420,19 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 function AssessmentCompletionCard({
   matchedItems,
   unassignedItems,
+  breakdown,
+  breakdownLoading,
   projectId,
 }: {
   matchedItems: number;
   unassignedItems: number;
+  breakdown: Array<{ contractorId: string; name: string; unassigned: number }>;
+  breakdownLoading: boolean;
   projectId: string;
 }) {
   const totalItems = matchedItems + unassignedItems;
   const completionPercent = totalItems > 0 ? Math.round((matchedItems / totalItems) * 100) : 0;
+  const totalUnassigned = breakdown.reduce((sum, item) => sum + item.unassigned, 0);
 
   return (
     <Card className="h-full">
@@ -392,19 +441,22 @@ function AssessmentCompletionCard({
         <CardDescription>Matched items versus remaining work.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col items-center gap-6">
-          <CompletionDonut matchedItems={matchedItems} unassignedItems={unassignedItems} />
-          <div className="text-center text-sm text-muted-foreground">
-            <p>
-              <span className="text-base font-semibold text-foreground">{completionPercent}%</span> completed
-            </p>
-            <p>
-              {matchedItems.toLocaleString()} matched out of {totalItems.toLocaleString()} total items.
-            </p>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,220px),1fr] lg:items-center">
+          <div className="flex flex-col items-center gap-6">
+            <CompletionDonut matchedItems={matchedItems} unassignedItems={unassignedItems} />
+            <div className="text-center text-sm text-muted-foreground">
+              <p>
+                <span className="text-base font-semibold text-foreground">{completionPercent}%</span> completed
+              </p>
+              <p>
+                {matchedItems.toLocaleString()} matched out of {totalItems.toLocaleString()} total items.
+              </p>
+            </div>
+            <Button asChild className="w-full sm:w-auto">
+              <Link href={`/projects/${projectId}/assessment`}>View assessment report</Link>
+            </Button>
           </div>
-          <Button asChild className="w-full sm:w-auto">
-            <Link href={`/projects/${projectId}/assessment`}>View assessment report</Link>
-          </Button>
+          <ContractorUnassignedChart breakdown={breakdown} total={totalUnassigned} isLoading={breakdownLoading} />
         </div>
       </CardContent>
     </Card>
@@ -460,6 +512,79 @@ function CompletionDonut({
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
         <span className="text-4xl font-semibold text-foreground">{unassignedItems.toLocaleString()}</span>
         <span className="text-xs uppercase tracking-wide text-muted-foreground">Unassigned items</span>
+      </div>
+    </div>
+  );
+}
+
+function ContractorUnassignedChart({
+  breakdown,
+  total,
+  isLoading,
+}: {
+  breakdown: Array<{ contractorId: string; name: string; unassigned: number }>;
+  total: number;
+  isLoading: boolean;
+}) {
+  const maxValue = breakdown.reduce((max, entry) => Math.max(max, entry.unassigned), 0);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading contractor breakdown...
+      </div>
+    );
+  }
+
+  if (breakdown.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        No contractor responses yet. Upload responses to begin matching.
+      </div>
+    );
+  }
+
+  if (total === 0) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between text-sm font-medium text-foreground">
+          <span>Unassigned by contractor</span>
+          <span className="text-muted-foreground">{total}</span>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          All response items are currently assigned.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between text-sm font-medium text-foreground">
+        <span>Unassigned by contractor</span>
+        <span className="text-muted-foreground">{total.toLocaleString()} total</span>
+      </div>
+      <div className="space-y-3">
+        {breakdown.map(({ contractorId, name, unassigned }) => (
+          <div key={contractorId} className="space-y-1">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-medium text-foreground">{name}</span>
+              <span className="text-muted-foreground">{unassigned.toLocaleString()}</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary/80"
+                style={{
+                  width:
+                    unassigned === 0
+                      ? "0%"
+                      : `${Math.min(100, Math.max(8, (unassigned / Math.max(1, maxValue)) * 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -59,6 +59,8 @@ export function MatchSuggestionsScreen({
     return contractors.find((contractor) => contractor.contractorId === contractorId)?.name ?? null;
   }, [contractorId, contractors]);
 
+  const activeContractorId = contractorId ?? (contractors[0]?.contractorId ?? "");
+
   // Column width state for resizable columns
   const [columnWidths, setColumnWidths] = useState({
     checkbox: 50,
@@ -108,6 +110,7 @@ export function MatchSuggestionsScreen({
       toast.success(variables.status === "accepted" ? "Match accepted" : "Match rejected");
       queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-unmatched-summary", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-matches", projectId] });
       setSelectedMatches(prev => {
         const updated = new Set(prev);
@@ -144,6 +147,7 @@ export function MatchSuggestionsScreen({
       }
       queryClient.invalidateQueries({ queryKey: ["match-suggestions", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-unmatched-summary", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-matches", projectId] });
       setSelectedMatches(new Set());
     },
@@ -360,7 +364,7 @@ export function MatchSuggestionsScreen({
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end md:gap-3">
           {contractors.length > 0 ? (
-            <Select value={contractorId ?? ""} onValueChange={(value) => onSelectContractor(value)}>
+            <Select value={activeContractorId} onValueChange={(value) => onSelectContractor(value)}>
               <SelectTrigger className="w-full min-w-[220px] md:w-56">
                 <SelectValue placeholder="Select contractor" />
               </SelectTrigger>
