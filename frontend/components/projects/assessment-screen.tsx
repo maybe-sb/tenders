@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { useAssessment, useGenerateReport } from "@/hooks/use-assessment";
@@ -23,6 +22,7 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   const generateReport = useGenerateReport(projectId);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
 
   const handleGenerateReport = async () => {
     try {
@@ -72,6 +72,13 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
       ...buildSectionDisplay(section, index),
     }));
   }, [data]);
+
+  // Initialize selected section when data loads
+  if (selectedSectionId === null && sectionEntries.length > 0) {
+    setSelectedSectionId(sectionEntries[0].section.sectionId);
+  }
+
+  const selectedSection = sectionEntries.find((entry) => entry.section.sectionId === selectedSectionId);
 
   const lineItemsBySection = useMemo(() => {
     if (!data) {
@@ -163,7 +170,13 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
               </TableHeader>
               <TableBody>
                 {sectionEntries.map(({ section, displayName, displayCode }) => (
-                  <TableRow key={section.sectionId}>
+                  <TableRow
+                    key={section.sectionId}
+                    onClick={() => setSelectedSectionId(section.sectionId)}
+                    className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                      selectedSectionId === section.sectionId ? "bg-muted/70" : ""
+                    }`}
+                  >
                     <TableCell>
                       <div className="space-y-1">
                         <p className="font-medium leading-tight">{displayName}</p>
@@ -203,145 +216,133 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue={sectionEntries[0]?.section.sectionId ?? "exceptions"} className="space-y-4">
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-2 overflow-x-auto">
-          {sectionEntries.map(({ section, tabLabel, tabDescription }) => (
-            <TabsTrigger
-              key={section.sectionId}
-              value={section.sectionId}
-              className="flex-none flex-col items-start gap-1 whitespace-normal text-left h-auto min-w-[160px] px-3 py-2"
-            >
-              <span className="text-sm font-semibold leading-tight">{tabLabel}</span>
-              {tabDescription ? (
-                <span className="text-xs text-muted-foreground leading-tight">{tabDescription}</span>
-              ) : null}
-            </TabsTrigger>
-          ))}
-          <TabsTrigger value="exceptions">Other / Unclassified</TabsTrigger>
-        </TabsList>
-        {sectionEntries.map(({ section, headerTitle, headerSubtitle }) => {
-          const sectionLines = lineItemsBySection.get(section.sectionId) ?? [];
-          const sectionLevelAttachments = attachmentsBySection.get(section.sectionId) ?? [];
+      {/* Section Detail View */}
+      {selectedSection && selectedSectionId !== "__OTHER__" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{selectedSection.headerTitle}</CardTitle>
+            <CardDescription>
+              {selectedSection.headerSubtitle ?? `Comparing ${contractors.length} contractor${contractors.length === 1 ? "" : "s"}.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Description</TableHead>
+                    {contractors.map((contractor) => (
+                      <TableHead key={contractor.contractorId} className="text-center">
+                        {contractor.name}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(() => {
+                    const sectionLines = lineItemsBySection.get(selectedSection.section.sectionId) ?? [];
+                    const sectionLevelAttachments = attachmentsBySection.get(selectedSection.section.sectionId) ?? [];
 
-          return (
-            <TabsContent key={section.sectionId} value={section.sectionId}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>{headerTitle}</CardTitle>
-                  <CardDescription>
-                    {headerSubtitle ?? `Comparing ${contractors.length} contractor${contractors.length === 1 ? "" : "s"}.`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="w-full overflow-x-auto">
-                    <Table>
-                      <TableHeader>
+                    if (sectionLines.length === 0 && sectionLevelAttachments.length === 0) {
+                      return (
                         <TableRow>
-                          <TableHead>Item</TableHead>
-                          <TableHead>Description</TableHead>
-                          {contractors.map((contractor) => (
-                            <TableHead key={contractor.contractorId} className="text-center">
-                              {contractor.name}
-                            </TableHead>
-                          ))}
+                          <TableCell colSpan={contractors.length + 2} className="text-center text-muted-foreground">
+                            No line items available for this section.
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {sectionLines.length === 0 && sectionLevelAttachments.length === 0 ? (
+                      );
+                    }
+
+                    return (
+                      <>
+                        {sectionLines.map((line) => (
+                          <TableRow key={line.ittItem.ittItemId}>
+                            <TableCell className="font-medium">{line.ittItem.itemCode}</TableCell>
+                            <TableCell className="whitespace-pre-line">{line.ittItem.description}</TableCell>
+                            {contractors.map((contractor) => (
+                              <TableCell key={contractor.contractorId} className="text-center">
+                                {renderResponseAmount(
+                                  line.responses[contractor.contractorId]?.amount,
+                                  line.responses[contractor.contractorId]?.amountLabel
+                                )}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                        {sectionLevelAttachments.length > 0 && sectionLines.length > 0 ? (
                           <TableRow>
-                            <TableCell colSpan={contractors.length + 2} className="text-center text-muted-foreground">
-                              No line items available for this section.
+                            <TableCell colSpan={contractors.length + 2} className="bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              Section-level responses
                             </TableCell>
                           </TableRow>
-                        ) : (
-                          <>
-                            {sectionLines.map((line) => (
-                              <TableRow key={line.ittItem.ittItemId}>
-                                <TableCell className="font-medium">{line.ittItem.itemCode}</TableCell>
-                                <TableCell className="whitespace-pre-line">{line.ittItem.description}</TableCell>
-                                {contractors.map((contractor) => (
-                                  <TableCell key={contractor.contractorId} className="text-center">
-                                    {renderResponseAmount(
-                                      line.responses[contractor.contractorId]?.amount,
-                                      line.responses[contractor.contractorId]?.amountLabel
-                                    )}
-                                  </TableCell>
-                                ))}
-                              </TableRow>
+                        ) : null}
+                        {sectionLevelAttachments.map((attachment) => (
+                          <TableRow key={`attachment-${selectedSection.section.sectionId}-${attachment.responseItemId}`} className="bg-muted/20">
+                            <TableCell className="font-medium text-muted-foreground">Section item</TableCell>
+                            <TableCell className="whitespace-pre-line">
+                              <div className="space-y-1">
+                                <p>{attachment.description}</p>
+                                <p className="text-xs text-muted-foreground">Assigned via manual section mapping</p>
+                                {attachment.note ? (
+                                  <p className="text-xs text-muted-foreground">Note: {attachment.note}</p>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            {contractors.map((contractor) => (
+                              <TableCell key={contractor.contractorId} className="text-center">
+                                {contractor.contractorId === attachment.contractorId
+                                  ? renderResponseAmount(attachment.amount, attachment.amountLabel)
+                                  : "-"}
+                              </TableCell>
                             ))}
-                            {sectionLevelAttachments.length > 0 && sectionLines.length > 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={contractors.length + 2} className="bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Section-level responses
-                                </TableCell>
-                              </TableRow>
-                            ) : null}
-                            {sectionLevelAttachments.map((attachment) => (
-                              <TableRow key={`attachment-${section.sectionId}-${attachment.responseItemId}`} className="bg-muted/20">
-                                <TableCell className="font-medium text-muted-foreground">Section item</TableCell>
-                                <TableCell className="whitespace-pre-line">
-                                  <div className="space-y-1">
-                                    <p>{attachment.description}</p>
-                                    <p className="text-xs text-muted-foreground">Assigned via manual section mapping</p>
-                                    {attachment.note ? (
-                                      <p className="text-xs text-muted-foreground">Note: {attachment.note}</p>
-                                    ) : null}
-                                  </div>
-                                </TableCell>
-                                {contractors.map((contractor) => (
-                                  <TableCell key={contractor.contractorId} className="text-center">
-                                    {contractor.contractorId === attachment.contractorId
-                                      ? renderResponseAmount(attachment.amount, attachment.amountLabel)
-                                      : "-"}
-                                  </TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
-                          </>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          );
-        })}
-        <TabsContent value="exceptions">
-          <Card>
-            <CardHeader>
-              <CardTitle>Other / Unclassified</CardTitle>
-              <CardDescription>Items manually assigned to Other/Unclassified in Manual Mapping.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {exceptions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No items assigned to Other/Unclassified.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Contractor</TableHead>
-                      <TableHead className="text-center">Amount</TableHead>
+                          </TableRow>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Other/Unclassified Section */}
+      {selectedSectionId === "__OTHER__" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Other / Unclassified</CardTitle>
+            <CardDescription>Items manually assigned to Other/Unclassified in Manual Mapping.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {exceptions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No items assigned to Other/Unclassified.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Contractor</TableHead>
+                    <TableHead className="text-center">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {exceptions.map((exception) => (
+                    <TableRow key={exception.responseItemId}>
+                      <TableCell>{exception.description}</TableCell>
+                      <TableCell>{exception.contractorName}</TableCell>
+                      <TableCell className="text-center">
+                        {typeof exception.amount === "number" ? formatCurrency(exception.amount) : "-"}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {exceptions.map((exception) => (
-                      <TableRow key={exception.responseItemId}>
-                        <TableCell>{exception.description}</TableCell>
-                        <TableCell>{exception.contractorName}</TableCell>
-                        <TableCell className="text-center">
-                          {typeof exception.amount === "number" ? formatCurrency(exception.amount) : "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

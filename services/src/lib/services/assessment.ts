@@ -273,6 +273,29 @@ function buildAssessmentPayload(
     };
   });
 
+  // Add synthetic "Other/Unclassified" section for unassigned exceptions
+  const unassignedExceptions = exceptions.filter((ex) => !ex.sectionId);
+  const otherContractorTotals: Record<string, number> = {};
+  unassignedExceptions.forEach((exception) => {
+    if (typeof exception.amount === "number") {
+      otherContractorTotals[exception.contractorId] =
+        (otherContractorTotals[exception.contractorId] || 0) + exception.amount;
+    }
+  });
+
+  if (unassignedExceptions.length > 0) {
+    const maxOrder = Math.max(...sectionSummaries.map((s) => s.order), 0);
+    sectionSummaries.push({
+      sectionId: "__OTHER__",
+      code: "—",
+      name: "Other / Unclassified",
+      order: maxOrder + 1,
+      totalsByContractor: otherContractorTotals,
+      totalITTAmount: 0,
+      exceptionCount: unassignedExceptions.length,
+    });
+  }
+
   const exceptionRecords = exceptions.map((exception) => ({
     responseItemId: exception.responseItemId,
     contractorId: exception.contractorId,
