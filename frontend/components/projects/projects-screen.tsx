@@ -83,7 +83,8 @@ export function ProjectsScreen() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create project</DialogTitle>
-            <DialogDescription>Capture the basics for your tendering project.</DialogDescription>\r\n          </DialogHeader>
+            <DialogDescription>Capture the basics for your tendering project.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="project-name">Project name</Label>
@@ -93,9 +94,6 @@ export function ProjectsScreen() {
                 onChange={(event) => setName(event.target.value)}
                 placeholder="ITT Package for HQ refurbishment"
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Currency</Label>
             </div>
           </div>
           <DialogFooter>
