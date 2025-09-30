@@ -256,8 +256,8 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,0.8fr)] lg:items-start">
-        <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] lg:items-start">
+        <div className="flex flex-col gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-3 text-xl font-semibold">
