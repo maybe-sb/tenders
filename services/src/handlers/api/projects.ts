@@ -380,6 +380,8 @@ export async function attachProjectException(event: ApiEvent, params: Record<str
 
     sectionId: payload.sectionId ?? undefined,
 
+    description: responseItem.description,
+
     note: payload.note ?? undefined,
 
     amount: typeof responseItem.amount === "number" ? responseItem.amount : undefined,

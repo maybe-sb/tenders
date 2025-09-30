@@ -39,6 +39,7 @@ function mapToExceptionEntity(record: ExceptionRecord): ExceptionEntity {
     responseItemId: record.responseItemId,
     contractorId: record.contractorId,
     sectionId: record.sectionId,
+    description: record.description,
     note: record.note,
     amount: record.amount,
     createdAt: record.createdAt,
@@ -72,6 +73,7 @@ export interface UpsertExceptionInput {
   responseItemId: string;
   contractorId: string;
   sectionId?: string;
+  description?: string;
   note?: string;
   amount?: number;
 }
@@ -89,6 +91,7 @@ export async function upsertProjectException(
     responseItemId: input.responseItemId,
     contractorId: input.contractorId,
     sectionId: input.sectionId,
+    description: input.description,
     note: input.note,
     amount: input.amount,
     createdAt: now,

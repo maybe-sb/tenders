@@ -133,6 +133,7 @@ export interface ExceptionEntity {
   responseItemId: string;
   contractorId: string;
   sectionId?: string;
+  description?: string;
   note?: string;
   amount?: number;
   createdAt: string;
