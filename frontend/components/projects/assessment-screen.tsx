@@ -66,12 +66,10 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
       return [] as Array<ReturnType<typeof buildSectionDisplay> & { section: SectionSummary }>;
     }
 
-    return [...data.sections]
-      .sort((a, b) => a.order - b.order)
-      .map((section, index) => ({
-        section,
-        ...buildSectionDisplay(section, index),
-      }));
+    return sortSections(data.sections).map((section, index) => ({
+      section,
+      ...buildSectionDisplay(section, index),
+    }));
   }, [data]);
 
   const sectionLabelById = useMemo(
@@ -369,4 +367,30 @@ function compareLineItems(a: AssessmentLineItem, b: AssessmentLineItem) {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+const sectionCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+function sortSections(sections: SectionSummary[]) {
+  return [...sections].sort(compareSections);
+}
+
+function compareSections(a: SectionSummary, b: SectionSummary) {
+  const orderA = Number.isFinite(a.order) ? a.order : Number.POSITIVE_INFINITY;
+  const orderB = Number.isFinite(b.order) ? b.order : Number.POSITIVE_INFINITY;
+
+  if (orderA !== orderB) {
+    return orderA < orderB ? -1 : 1;
+  }
+
+  const codeComparison = sectionCollator.compare(normalizeSectionCode(a.code), normalizeSectionCode(b.code));
+  if (codeComparison !== 0) {
+    return codeComparison;
+  }
+
+  return sectionCollator.compare(a.name?.trim() ?? "", b.name?.trim() ?? "");
+}
+
+function normalizeSectionCode(code?: string) {
+  return (code ?? "").trim();
 }
