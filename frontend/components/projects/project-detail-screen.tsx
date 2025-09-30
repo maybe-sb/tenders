@@ -228,7 +228,9 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
 
   const handleAssignToSection = async (sectionId: string, responseItemId: string) => {
     try {
-      await api.attachException(projectId, { responseItemId, sectionId });
+      // If "Other" section, pass undefined to store as unassigned
+      const actualSectionId = sectionId === "__OTHER__" ? undefined : sectionId;
+      await api.attachException(projectId, { responseItemId, sectionId: actualSectionId });
       toast.success("Response assigned to section");
 
       queryClient.invalidateQueries({
@@ -414,6 +416,7 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
           <DnDPanel
             sections={detail.sections ?? []}
             responseItems={responseItems}
+            exceptions={exceptions}
             onAssignSection={handleAssignToSection}
             emptyState={manualEmptyState}
           />

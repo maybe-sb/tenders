@@ -22,13 +22,17 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/lib/currency";
-import type { ResponseItem, SectionSummary } from "@/types/tenders";
+import type { ResponseItem, SectionSummary, ExceptionRecord } from "@/types/tenders";
+
+const OTHER_SECTION_ID = "__OTHER__";
 
 interface DnDPanelProps {
   sections: SectionSummary[];
   responseItems: ResponseItem[];
+  exceptions: ExceptionRecord[];
   onAssignSection: (sectionId: string, responseItemId: string) => void | Promise<void>;
   emptyState?: ReactNode;
 }
@@ -37,13 +41,14 @@ interface ManualMappingContentProps {
   layout: "compact" | "expanded";
   sections: SectionSummary[];
   responseItems: ResponseItem[];
+  exceptions: ExceptionRecord[];
   filterText: string;
   onFilterChange: (value: string) => void;
   onAssignSection: (sectionId: string, responseItemId: string) => void | Promise<void>;
   emptyState?: ReactNode;
 }
 
-export function DnDPanel({ sections, responseItems, onAssignSection, emptyState }: DnDPanelProps) {
+export function DnDPanel({ sections, responseItems, exceptions, onAssignSection, emptyState }: DnDPanelProps) {
   const [filterText, setFilterText] = useState("");
   const [expanded, setExpanded] = useState(false);
 
@@ -70,6 +75,7 @@ export function DnDPanel({ sections, responseItems, onAssignSection, emptyState 
               layout="expanded"
               sections={sections}
               responseItems={responseItems}
+              exceptions={exceptions}
               filterText={filterText}
               onFilterChange={setFilterText}
               onAssignSection={onAssignSection}
@@ -83,6 +89,7 @@ export function DnDPanel({ sections, responseItems, onAssignSection, emptyState 
         layout="compact"
         sections={sections}
         responseItems={responseItems}
+        exceptions={exceptions}
         filterText={filterText}
         onFilterChange={setFilterText}
         onAssignSection={onAssignSection}
@@ -96,6 +103,7 @@ function ManualMappingContent({
   layout,
   sections,
   responseItems,
+  exceptions,
   filterText,
   onFilterChange,
   onAssignSection,
@@ -113,13 +121,34 @@ function ManualMappingContent({
   const filteredSections = useMemo(() => {
     const search = filterText.trim().toLowerCase();
     const base = [...sections].sort((a, b) => a.order - b.order);
-    if (!search) {
-      return base;
-    }
-    return base.filter((section) =>
-      section.code.toLowerCase().includes(search) || section.name.toLowerCase().includes(search)
-    );
-  }, [sections, filterText]);
+
+    // Calculate unassigned exception count for "Other" section
+    const unassignedCount = exceptions.filter(e => !e.attachedSectionId).length;
+
+    // Get the max order to position "Other" at the end
+    const maxOrder = sections.length > 0 ? Math.max(...sections.map(s => s.order)) : 0;
+
+    // Create synthetic "Other" section
+    const otherSection: SectionSummary = {
+      sectionId: OTHER_SECTION_ID,
+      code: "—",
+      name: "Other / Unclassified",
+      order: maxOrder + 1,
+      totalsByContractor: {},
+      totalITTAmount: 0,
+      exceptionCount: unassignedCount,
+    };
+
+    // Filter real sections based on search
+    const filtered = search
+      ? base.filter((section) =>
+          section.code.toLowerCase().includes(search) || section.name.toLowerCase().includes(search)
+        )
+      : base;
+
+    // Always append "Other" section at the end
+    return [...filtered, otherSection];
+  }, [sections, filterText, exceptions]);
 
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active?.id) {
@@ -250,6 +279,7 @@ function DraggableResponseCard({ item }: { item: ResponseItem }) {
 
 function DroppableSectionCard({ section }: { section: SectionSummary }) {
   const { isOver, setNodeRef } = useDroppable({ id: section.sectionId });
+  const isOtherSection = section.sectionId === OTHER_SECTION_ID;
 
   return (
     <div
@@ -257,12 +287,25 @@ function DroppableSectionCard({ section }: { section: SectionSummary }) {
       data-droppable
       className={cn(
         "rounded-md border p-4 transition",
-        isOver ? "border-[#27ABE2] bg-[#27ABE2]/10" : "hover:border-primary/40"
+        isOver ? "border-[#27ABE2] bg-[#27ABE2]/10" : "hover:border-primary/40",
+        isOtherSection && "border-dashed bg-muted/30"
       )}
     >
-      <p className="text-sm font-semibold leading-tight">
-        {section.code} — {section.name}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold leading-tight">
+          {section.code} — {section.name}
+        </p>
+        {isOtherSection && (
+          <Badge variant="secondary" className="text-xs">
+            Special
+          </Badge>
+        )}
+      </div>
+      {isOtherSection && section.exceptionCount > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {section.exceptionCount} unassigned item{section.exceptionCount !== 1 ? "s" : ""}
+        </p>
+      )}
     </div>
   );
 }
