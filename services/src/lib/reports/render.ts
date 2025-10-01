@@ -86,7 +86,7 @@ export function renderAssessmentSummaryHtml(
         <meta charset="utf-8" />
         <title>${projectTitle} — Assessment Summary</title>
         <style>
-          @page { size: A4 landscape; margin: 0; }
+          @page { size: A4 landscape; margin: 14mm 18mm; }
           *, *::before, *::after { box-sizing: border-box; }
           body {
             font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
@@ -97,8 +97,8 @@ export function renderAssessmentSummaryHtml(
             background: #f1f5f9;
           }
           .cover {
-            min-height: 100vh;
-            padding: 72px 80px 64px;
+            min-height: calc(100vh - 20mm);
+            padding: 60px 70px 48px;
             background: white;
             display: flex;
             flex-direction: column;
@@ -111,8 +111,10 @@ export function renderAssessmentSummaryHtml(
             margin-bottom: 48px;
           }
           .cover-logo {
-            height: 56px;
+            height: 42px;
             width: auto;
+            object-fit: contain;
+            display: block;
           }
           .cover-title {
             flex: 1;
@@ -137,7 +139,7 @@ export function renderAssessmentSummaryHtml(
             text-align: right;
           }
           .cover-insights {
-            margin-top: 32px;
+            margin-top: 28px;
           }
           .cover-insights h2 {
             font-size: 18px;
@@ -169,8 +171,9 @@ export function renderAssessmentSummaryHtml(
           }
           .page-break { page-break-before: always; }
           .content {
-            min-height: 100vh;
-            padding: 40px 48px 48px;
+            min-height: calc(100vh - 20mm);
+            padding: 32px 36px 36px;
+            background: white;
           }
           h2 {
             font-size: 16px;
