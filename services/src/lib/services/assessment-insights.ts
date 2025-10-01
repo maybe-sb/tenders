@@ -100,6 +100,8 @@ Your goal is to produce a concise executive assessment with 3 to 4 paragraphs. F
 - Keep the tone professional and practical.
 - Keep the entire response within roughly 250 words so it fits on one screen.
 
+The ITT will contain no prices, it is provided for description of the desired billable items that contractors can respond to with their prices.
+
 You will receive the full assessment dataset as JSON. Review cross-contractor comparisons carefully before writing.
 
 ${ASSESSMENT_SCHEMA_DESCRIPTION}

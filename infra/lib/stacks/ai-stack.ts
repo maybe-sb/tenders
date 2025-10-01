@@ -140,6 +140,7 @@ export class AiStack extends Stack {
       tracing: Tracing.ACTIVE,
       environment: {
         TABLE_NAME: props.table.tableName,
+        ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
         OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-5",
         OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "priority",

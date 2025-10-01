@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import * as XLSX from "xlsx";
+import pdfParse from "pdf-parse";
 import { logger } from "@/lib/logger";
 import { getEnv } from "@/lib/env";
 import {
@@ -340,6 +341,121 @@ export async function processExcelWithDirectUpload(
     "MAX_RETRIES_EXCEEDED",
     { originalError: lastError }
   );
+}
+
+const MAX_PDF_BYTES = 900_000;
+
+export async function processPdfWithOpenAI(
+  fileBuffer: Buffer,
+  filename: string,
+  documentType: "itt" | "response",
+  contractorName?: string
+): Promise<{ response: OpenAIExcelResponse; usage: TokenUsage }> {
+  const client = getOpenAIClient();
+  const { OPENAI_MODEL, OPENAI_SERVICE_TIER } = getEnv();
+  const model = OPENAI_MODEL ?? DEFAULT_MODEL;
+  const serviceTier = OPENAI_SERVICE_TIER ?? SERVICE_TIER;
+
+  logger.info("Processing PDF with GPT-5 Responses API", {
+    filename,
+    documentType,
+    contractorName,
+  });
+
+  const parsed = await pdfParse(fileBuffer);
+  const rawText = (parsed.text ?? "").replace(/\r/g, "").trim();
+  if (!rawText) {
+    throw new OpenAIExtractionError("No text extracted from PDF", "EMPTY_PDF_TEXT");
+  }
+
+  const truncated = Buffer.byteLength(rawText, "utf8") > MAX_PDF_BYTES;
+  const textSlice = truncated ? rawText.slice(0, MAX_PDF_BYTES) + "\n/* TRUNCATED */" : rawText;
+
+  const contractorContext = contractorName && documentType === "response"
+    ? `Contractor: ${contractorName}.\n`
+    : "";
+
+  const instructions = `You are an expert construction tender analyst extracting structured Bill of Quantities data.
+
+${contractorContext}The source material is a PDF render of a tender ${documentType === "itt" ? "schedule" : "contractor response"}. You are given line-by-line text extracted from the document. Tables may be flattened, so infer column groupings where possible.
+
+Return JSON that matches the exact schema provided. Interpret headings, subtotals, and free-form notes carefully to assign each priced item to the correct section hierarchy. Preserve rate-only or allowance style labels in amountLabel when numerical amounts are missing.
+
+If the source omits a value, use null (not zero).`;
+
+  const response = await client.responses.create({
+    model,
+    service_tier: serviceTier,
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `${instructions}\n\nPDF text (extracted):\n${textSlice}`,
+          },
+        ],
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "ITTExtraction",
+        strict: true,
+        schema,
+      },
+    },
+  });
+
+  const out = response.output_text ?? response.output?.[0]?.content?.[0]?.text;
+  if (!out) {
+    logger.error("No output returned from GPT-5 for PDF", {
+      filename,
+      fullResponse: JSON.stringify(response, null, 2),
+    });
+    throw new OpenAIExtractionError("No output returned from GPT-5", "NO_OUTPUT");
+  }
+
+  let parsedJson: unknown;
+  try {
+    const cleanedJson = extractJsonFromMarkdown(out);
+    parsedJson = JSON.parse(cleanedJson);
+  } catch (error) {
+    logger.error("Failed to parse JSON from GPT-5 PDF response", {
+      filename,
+      rawTextPreview: out.slice(0, 500),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new OpenAIExtractionError("Failed to parse JSON from GPT-5 response", "INVALID_JSON", {
+      rawTextPreview: out.slice(0, 500),
+    });
+  }
+
+  let validated: OpenAIExcelResponse;
+  try {
+    const transformed = transformGPTResponseToSchema(parsedJson, documentType, contractorName);
+    validated = OpenAIExcelResponseSchema.parse(transformed);
+  } catch (error) {
+    const issues = error && typeof error === "object" && "issues" in (error as any) ? (error as any).issues : error;
+    logger.error("OpenAI PDF response schema validation failed", { issues });
+    throw new OpenAIExtractionError("OpenAI response schema validation failed", "INVALID_RESPONSE_SCHEMA", { issues });
+  }
+
+  const usage: TokenUsage = {
+    promptTokens: response.usage?.input_tokens ?? 0,
+    completionTokens: response.usage?.output_tokens ?? 0,
+    totalTokens: response.usage?.total_tokens ?? 0,
+    estimatedCost: 0,
+  };
+
+  logger.info("PDF extraction successful", {
+    filename,
+    itemsExtracted: validated.items.length,
+    truncated,
+    pages: parsed.numpages,
+  });
+
+  return { response: validated, usage };
 }
 
 // Transform GPT response to match our expected schema
