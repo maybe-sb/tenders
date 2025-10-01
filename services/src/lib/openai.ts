@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import * as XLSX from "xlsx";
-import pdfParse from "pdf-parse";
+import pdfParse from "pdf-parse/lib/pdf-parse";
 import { logger } from "@/lib/logger";
 import { getEnv } from "@/lib/env";
 import {
