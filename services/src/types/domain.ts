@@ -176,3 +176,18 @@ export interface ProjectDetail extends TenderProject {
   contractors: ContractorSummary[];
   pendingJobs: ParseJobStatusRecord[];
 }
+
+export type ReportStatus = "pending" | "generating" | "ready" | "failed";
+export type ReportType = "ASSESSMENT_SUMMARY";
+
+export interface ReportEntity {
+  reportId: string;
+  projectId: string;
+  reportKey: string;
+  type: ReportType;
+  status: ReportStatus;
+  createdAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+  requestedBy: string;
+}

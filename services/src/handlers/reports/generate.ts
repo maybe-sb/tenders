@@ -9,11 +9,13 @@ import { getEnv } from "@/lib/env";
 import { s3Client } from "@/lib/s3";
 import { loadAssessment } from "@/lib/services/assessment";
 import { renderAssessmentSummaryHtml } from "@/lib/reports/render";
+import { updateReportStatus } from "@/lib/repository/reports";
 
 interface ReportJob {
   type: "ASSESSMENT_SUMMARY";
   ownerSub: string;
   projectId: string;
+  reportId: string;
   reportKey: string;
   requestedAt?: string;
 }
@@ -22,6 +24,7 @@ const ReportJobSchema = z.object({
   type: z.literal("ASSESSMENT_SUMMARY"),
   ownerSub: z.string().min(1),
   projectId: z.string().min(1),
+  reportId: z.string().min(1),
   reportKey: z.string().min(1),
   requestedAt: z.string().optional(),
 });
@@ -54,31 +57,56 @@ async function processRecord(record: SQSRecord): Promise<void> {
     return;
   }
 
-  const assessment = await loadAssessment(payload.ownerSub, payload.projectId);
-  if (!assessment) {
-    logger.warn("Project not found for report job", {
+  try {
+    // Update status to "generating"
+    await updateReportStatus(payload.projectId, payload.reportId, "generating");
+
+    const assessment = await loadAssessment(payload.ownerSub, payload.projectId);
+    if (!assessment) {
+      logger.warn("Project not found for report job", {
+        projectId: payload.projectId,
+        ownerSub: payload.ownerSub,
+      });
+      await updateReportStatus(payload.projectId, payload.reportId, "failed", {
+        errorMessage: "Project not found",
+      });
+      return;
+    }
+
+    const html = renderAssessmentSummaryHtml(assessment);
+    const pdfBuffer = await generatePdf(html);
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: env.ARTIFACTS_BUCKET,
+        Key: payload.reportKey,
+        Body: pdfBuffer,
+        ContentType: "application/pdf",
+      })
+    );
+
+    // Update status to "ready"
+    const completedAt = new Date().toISOString();
+    await updateReportStatus(payload.projectId, payload.reportId, "ready", { completedAt });
+
+    logger.info("Report written to S3", {
       projectId: payload.projectId,
-      ownerSub: payload.ownerSub,
+      reportId: payload.reportId,
+      key: payload.reportKey,
     });
-    return;
+  } catch (error) {
+    logger.error("Failed to generate report", {
+      projectId: payload.projectId,
+      reportId: payload.reportId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    await updateReportStatus(payload.projectId, payload.reportId, "failed", {
+      errorMessage: error instanceof Error ? error.message : "Unknown error occurred",
+    });
+
+    throw error;
   }
-
-  const html = renderAssessmentSummaryHtml(assessment);
-  const pdfBuffer = await generatePdf(html);
-
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: env.ARTIFACTS_BUCKET,
-      Key: payload.reportKey,
-      Body: pdfBuffer,
-      ContentType: "application/pdf",
-    })
-  );
-
-  logger.info("Report written to S3", {
-    projectId: payload.projectId,
-    key: payload.reportKey,
-  });
 }
 
 function parseJobPayload(body: string): ReportJob {
