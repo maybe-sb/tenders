@@ -53,6 +53,7 @@ const apiStack = new ApiStack(app, `Tenders-${envName}-Api`, {
   matchQueue: aiStack.matchQueue,
   reportQueue: aiStack.reportQueue,
   textractQueue: aiStack.textractQueue,
+  insightsQueue: aiStack.insightsQueue,
 });
 
 apiStack.addDependency(aiStack);

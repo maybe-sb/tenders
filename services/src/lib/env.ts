@@ -2,11 +2,12 @@ import { z } from "zod";
 
 const EnvSchema = z.object({
   TABLE_NAME: z.string(),
-  UPLOADS_BUCKET: z.string(),
+  UPLOADS_BUCKET: z.string().optional(),
   ARTIFACTS_BUCKET: z.string(),
   MATCH_QUEUE_URL: z.string().optional(),
   REPORT_QUEUE_URL: z.string().optional(),
   TEXTRACT_QUEUE_URL: z.string().optional(),
+  INSIGHTS_QUEUE_URL: z.string().optional(),
   REPORT_TEMPLATE_BUCKET: z.string().optional(),
   AWS_REGION: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),

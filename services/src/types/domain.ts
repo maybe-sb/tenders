@@ -191,3 +191,18 @@ export interface ReportEntity {
   errorMessage?: string;
   requestedBy: string;
 }
+
+export type InsightsStatus = "pending" | "generating" | "ready" | "failed";
+
+export interface InsightsEntity {
+  insightsId: string;
+  projectId: string;
+  status: InsightsStatus;
+  insights?: string;
+  model?: string;
+  truncated?: boolean;
+  createdAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+  requestedBy: string;
+}

@@ -11,7 +11,9 @@ import {
   ResponseItem,
   TenderProject,
   UploadResponse,
-  AssessmentInsightsResponse,
+  GenerateInsightsResponse,
+  GetInsightsResponse,
+  ListInsightsResponse,
   GenerateReportResponse,
   GetReportResponse,
   ListReportsResponse,
@@ -164,7 +166,11 @@ export const api = {
   getAssessment: (projectId: string) =>
     request<AssessmentPayload>(`/projects/${projectId}/assessment`, "GET"),
   generateAssessmentInsights: (projectId: string) =>
-    request<AssessmentInsightsResponse>(`/projects/${projectId}/assessment/insights`, "POST"),
+    request<GenerateInsightsResponse>(`/projects/${projectId}/assessment/insights`, "POST"),
+  getInsights: (projectId: string, insightsId: string) =>
+    request<GetInsightsResponse>(`/projects/${projectId}/assessment/insights/${insightsId}`, "GET"),
+  listInsights: (projectId: string) =>
+    request<ListInsightsResponse>(`/projects/${projectId}/assessment/insights`, "GET"),
   generateReport: (projectId: string) =>
     request<GenerateReportResponse>(`/projects/${projectId}/reports`, "POST"),
   getReport: (projectId: string, reportId: string) =>

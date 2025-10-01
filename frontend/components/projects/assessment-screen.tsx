@@ -9,11 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAssessment, useGenerateInsights, useGenerateReport, useReports } from "@/hooks/use-assessment";
+import { useAssessment, useGenerateInsights, useGenerateReport, useReports, useInsights } from "@/hooks/use-assessment";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import type {
-  AssessmentInsightsResponse,
   AssessmentLineItem,
   SectionAttachmentRecord,
   SectionSummary,
@@ -31,10 +30,11 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   const generateReport = useGenerateReport(projectId);
   const generateInsights = useGenerateInsights(projectId);
   const { data: reportsData } = useReports(projectId);
+  const { data: insightsData } = useInsights(projectId);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
-  const [insightsVisible, setInsightsVisible] = useState(false);
-  const [insightsData, setInsightsData] = useState<AssessmentInsightsResponse | null>(null);
-  const [insightsError, setInsightsError] = useState<string | null>(null);
+
+  // Get the latest insights
+  const latestInsights = insightsData?.insights?.[0] || null;
 
   // Get the latest report
   const latestReport = reportsData?.reports?.[0] || null;
@@ -68,15 +68,13 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
 
   const handleGenerateInsights = async () => {
     try {
-      setInsightsVisible(true);
-      setInsightsError(null);
-      setInsightsData(null);
-      const result = await generateInsights.mutateAsync();
-      setInsightsData(result);
+      await generateInsights.mutateAsync();
+      toast("Generating insights", {
+        description: "This may take up to a minute. Results will appear when ready.",
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to generate insights";
+      const message = error instanceof Error ? error.message : "Failed to start insights generation";
       toast.error(message);
-      setInsightsError(message);
     }
   };
 
@@ -124,21 +122,18 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   // Only show exceptions that were explicitly assigned to "Other/Unclassified" (no section)
   const exceptions = allExceptions.filter((exception) => !exception.attachedSectionId);
 
-  const shouldShowInsightsCard =
-    insightsVisible ||
-    generateInsights.isPending ||
-    Boolean(insightsData) ||
-    Boolean(insightsError);
+  const shouldShowInsightsCard = Boolean(latestInsights);
 
-  const insightsDescription = generateInsights.isPending
-    ? "Generating insights..."
-    : insightsData
-      ? `Generated ${new Date(insightsData.generatedAt).toLocaleString()}${
-          insightsData.truncated ? " (partial dataset)" : ""
-        }`
-      : insightsError
-        ? "We couldn't generate insights. Try again."
-        : "Use AI to surface highlights across contractor responses.";
+  const insightsDescription =
+    latestInsights?.status === "generating" || latestInsights?.status === "pending"
+      ? "Generating insights..."
+      : latestInsights?.status === "ready"
+        ? `Generated ${new Date(latestInsights.createdAt).toLocaleString()}${
+            latestInsights.truncated ? " (partial dataset)" : ""
+          }`
+        : latestInsights?.status === "failed"
+          ? "We couldn't generate insights. Try again."
+          : "Use AI to surface highlights across contractor responses.";
 
   if (isLoading || !data) {
     return <p className="text-muted-foreground">Loading assessment...</p>;
@@ -157,17 +152,32 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={handleGenerateInsights} disabled={generateInsights.isPending} variant="secondary">
-            {generateInsights.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-4 w-4" /> Generate Insights
-              </>
-            )}
-          </Button>
+          {!latestInsights || latestInsights.status === "failed" ? (
+            <Button onClick={handleGenerateInsights} disabled={generateInsights.isPending} variant="secondary">
+              {generateInsights.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Starting...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" /> Generate Insights
+                </>
+              )}
+            </Button>
+          ) : latestInsights.status === "pending" || latestInsights.status === "generating" ? (
+            <Button disabled variant="secondary">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Insights...
+            </Button>
+          ) : latestInsights.status === "ready" ? (
+            <div className="flex gap-2">
+              <Button disabled variant="secondary">
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Insights Ready
+              </Button>
+              <Button onClick={handleGenerateInsights} variant="outline" size="sm">
+                Regenerate
+              </Button>
+            </div>
+          ) : null}
           {!latestReport || latestReport.status === "failed" ? (
             <Button onClick={handleGenerateReport} disabled={generateReport.isPending}>
               {generateReport.isPending ? (
@@ -204,16 +214,16 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
             <CardDescription>{insightsDescription}</CardDescription>
           </CardHeader>
           <CardContent>
-            {generateInsights.isPending ? (
+            {latestInsights?.status === "generating" || latestInsights?.status === "pending" ? (
               <div className="space-y-3">
                 <Skeleton className="h-4 w-1/3" />
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-5/6" />
                 <Skeleton className="h-4 w-4/5" />
               </div>
-            ) : insightsError ? (
-              <p className="text-sm text-destructive">{insightsError}</p>
-            ) : insightsData ? (
+            ) : latestInsights?.status === "failed" ? (
+              <p className="text-sm text-destructive">{latestInsights.errorMessage || "Failed to generate insights"}</p>
+            ) : latestInsights?.status === "ready" && latestInsights.insights ? (
               <div className="space-y-4 text-sm leading-6">
                 <ReactMarkdown
                   className="prose prose-sm max-w-none dark:prose-invert"
@@ -226,9 +236,9 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
                     p: ({ children }) => <p className="text-sm leading-6 text-foreground">{children}</p>,
                   }}
                 >
-                  {insightsData.insights.trim()}
+                  {latestInsights.insights?.trim() || ""}
                 </ReactMarkdown>
-                {insightsData.truncated ? (
+                {latestInsights.truncated ? (
                   <p className="text-xs text-muted-foreground">
                     Note: only part of the dataset was analyzed due to size limits.
                   </p>

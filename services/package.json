@@ -24,7 +24,7 @@
     "@middy/http-error-handler": "^5.2.0",
     "@middy/http-json-body-parser": "^5.2.0",
     "@middy/http-response-serializer": "^5.2.0",
-    "@sparticuz/chromium-min": "^114.0.0",
+    "@sparticuz/chromium": "^140.0.0",
     "dotenv": "^17.2.2",
     "exceljs": "^4.4.0",
     "jsdom": "^24.0.0",

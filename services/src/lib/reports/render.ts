@@ -24,6 +24,7 @@ export function renderAssessmentSummaryHtml(
   const generatedLabel = generatedAt.toLocaleString("en-AU", {
     dateStyle: "long",
     timeStyle: "short",
+    timeZone: "Australia/Sydney",
   });
 
   const sectionRows = sections

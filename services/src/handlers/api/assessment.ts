@@ -10,10 +10,10 @@ import { sendQueueMessage } from "@/lib/queues";
 import { getEnv } from "@/lib/env";
 import { loadAssessment } from "@/lib/services/assessment";
 import { logger } from "@/lib/logger";
-import { generateAssessmentInsights } from "@/lib/services/assessment-insights";
 import { randomUUID } from "node:crypto";
 import { s3Client } from "@/lib/s3";
 import { createReport, getReport as getReportRecord, listProjectReports } from "@/lib/repository/reports";
+import { createInsightsJob, getInsights as getInsightsRecord, listProjectInsights } from "@/lib/repository/insights";
 
 export async function getAssessment(event: ApiEvent, params: Record<string, string>): Promise<APIGatewayProxyStructuredResultV2> {
   const ownerSub = getOwnerSub(event);
@@ -169,28 +169,103 @@ export async function generateInsights(
   event: ApiEvent,
   params: Record<string, string>
 ): Promise<APIGatewayProxyStructuredResultV2> {
+  const env = getEnv();
+  if (!env.INSIGHTS_QUEUE_URL) {
+    logger.error("Insights queue URL is not configured");
+    return jsonResponse(500, { message: "Insights generation queue is not configured" });
+  }
+
   const ownerSub = getOwnerSub(event);
   const projectId = getPathParam(params, "projectId");
 
-  const assessment = await loadAssessment(ownerSub, projectId);
-  if (!assessment) {
+  const project = await getProjectItem(ownerSub, projectId);
+  if (!project) {
     return jsonResponse(404, { message: "Project not found" });
   }
 
-  try {
-    const result = await generateAssessmentInsights(projectId, assessment);
-    return jsonResponse(200, {
-      insights: result.insights,
-      generatedAt: new Date().toISOString(),
-      model: result.model,
-      truncated: result.truncated,
-    });
-  } catch (error) {
-    logger.error("Failed to generate assessment insights", {
-      projectId,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      errorStack: error instanceof Error ? error.stack : undefined,
-    });
-    return jsonResponse(500, { message: "Failed to generate insights" });
+  // Create insights record in database
+  const insights = await createInsightsJob(ownerSub, projectId);
+
+  await sendQueueMessage(env.INSIGHTS_QUEUE_URL, {
+    ownerSub,
+    projectId,
+    insightsId: insights.insightsId,
+    requestedAt: new Date().toISOString(),
+  });
+
+  logger.info("Enqueued insights generation", { projectId, insightsId: insights.insightsId });
+
+  return jsonResponse(202, {
+    insightsId: insights.insightsId,
+    status: insights.status,
+    createdAt: insights.createdAt,
+  });
+}
+
+export async function getInsights(
+  event: ApiEvent,
+  params: Record<string, string>
+): Promise<APIGatewayProxyStructuredResultV2> {
+  const ownerSub = getOwnerSub(event);
+  const projectId = getPathParam(params, "projectId");
+  const insightsIdParam = getPathParam(params, "insightsId");
+  const insightsId = decodeURIComponent(insightsIdParam);
+
+  const project = await getProjectItem(ownerSub, projectId);
+  if (!project) {
+    return jsonResponse(404, { message: "Project not found" });
   }
+
+  // Get insights record from database
+  const insights = await getInsightsRecord(insightsId);
+  if (!insights || insights.projectId !== projectId) {
+    return jsonResponse(404, { message: "Insights not found" });
+  }
+
+  // Check insights status
+  if (insights.status === "failed") {
+    return jsonResponse(500, {
+      message: insights.errorMessage || "Insights generation failed",
+      status: "failed",
+      insightsId: insights.insightsId,
+      createdAt: insights.createdAt,
+    });
+  }
+
+  if (insights.status === "pending" || insights.status === "generating") {
+    return jsonResponse(202, {
+      message: "Insights are still being generated",
+      status: insights.status,
+      insightsId: insights.insightsId,
+      createdAt: insights.createdAt,
+    });
+  }
+
+  // Status is "ready"
+  return jsonResponse(200, {
+    insights: insights.insights,
+    status: insights.status,
+    insightsId: insights.insightsId,
+    createdAt: insights.createdAt,
+    completedAt: insights.completedAt,
+    model: insights.model,
+    truncated: insights.truncated,
+  });
+}
+
+export async function listInsights(
+  event: ApiEvent,
+  params: Record<string, string>
+): Promise<APIGatewayProxyStructuredResultV2> {
+  const ownerSub = getOwnerSub(event);
+  const projectId = getPathParam(params, "projectId");
+
+  const project = await getProjectItem(ownerSub, projectId);
+  if (!project) {
+    return jsonResponse(404, { message: "Project not found" });
+  }
+
+  const insights = await listProjectInsights(projectId);
+
+  return jsonResponse(200, { insights });
 }

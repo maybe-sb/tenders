@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import { AssessmentPayload, ListReportsResponse } from "@/types/tenders";
+import { AssessmentPayload, ListReportsResponse, ListInsightsResponse } from "@/types/tenders";
 
 export function useAssessment(projectId: string) {
   return useQuery<AssessmentPayload>({
@@ -36,7 +36,22 @@ export function useReports(projectId: string, enabled = true) {
 }
 
 export function useGenerateInsights(projectId: string) {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: () => api.generateAssessmentInsights(projectId),
+    onSuccess: () => {
+      // Invalidate insights list to refetch with new insights
+      queryClient.invalidateQueries({ queryKey: ["project-insights", projectId] });
+    },
+  });
+}
+
+export function useInsights(projectId: string, enabled = true) {
+  return useQuery<ListInsightsResponse>({
+    queryKey: ["project-insights", projectId],
+    queryFn: () => api.listInsights(projectId),
+    enabled: Boolean(projectId) && enabled,
+    refetchInterval: 5000, // Poll every 5 seconds to check insights status
   });
 }

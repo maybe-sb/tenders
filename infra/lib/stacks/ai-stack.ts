@@ -2,7 +2,7 @@ import { Duration, Stack, StackProps, CfnOutput } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { Queue } from "aws-cdk-lib/aws-sqs";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import { Runtime, Tracing } from "aws-cdk-lib/aws-lambda";
+import { Runtime, Tracing, LayerVersion } from "aws-cdk-lib/aws-lambda";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { Table } from "aws-cdk-lib/aws-dynamodb";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
@@ -21,6 +21,7 @@ export class AiStack extends Stack {
   public readonly textractQueue: Queue;
   public readonly matchQueue: Queue;
   public readonly reportQueue: Queue;
+  public readonly insightsQueue: Queue;
 
   constructor(scope: Construct, id: string, props: AiStackProps) {
     super(scope, id, props);
@@ -38,6 +39,11 @@ export class AiStack extends Stack {
     this.reportQueue = new Queue(this, "ReportQueue", {
       queueName: `tenders-report-${props.envName}`,
       visibilityTimeout: Duration.minutes(15),
+    });
+
+    this.insightsQueue = new Queue(this, "InsightsQueue", {
+      queueName: `tenders-insights-${props.envName}`,
+      visibilityTimeout: Duration.minutes(5),
     });
 
     // AI-Enhanced Excel Extractor (replacing the traditional one)
@@ -109,8 +115,12 @@ export class AiStack extends Stack {
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
       timeout: Duration.minutes(10),
-      memorySize: 1536,
+      memorySize: 2048,
       tracing: Tracing.ACTIVE,
+      depsLockFilePath: path.join(__dirname, "..", "..", "..", "services", "package-lock.json"),
+      bundling: {
+        nodeModules: ["@sparticuz/chromium"],
+      },
       environment: {
         TABLE_NAME: props.table.tableName,
         ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
@@ -118,11 +128,30 @@ export class AiStack extends Stack {
     });
 
     reportGenerator.addEventSource(new SqsEventSource(this.reportQueue));
-    props.table.grantReadData(reportGenerator);
+    props.table.grantReadWriteData(reportGenerator);
     props.artifactsBucket.grantReadWrite(reportGenerator);
+
+    const insightsGenerator = new NodejsFunction(this, "InsightsGenerator", {
+      entry: path.join(__dirname, "..", "..", "..", "services", "src", "handlers", "insights", "generate.ts"),
+      runtime: Runtime.NODEJS_20_X,
+      handler: "handler",
+      timeout: Duration.minutes(5),
+      memorySize: 512,
+      tracing: Tracing.ACTIVE,
+      environment: {
+        TABLE_NAME: props.table.tableName,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+        OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-5",
+        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "priority",
+      },
+    });
+
+    insightsGenerator.addEventSource(new SqsEventSource(this.insightsQueue));
+    props.table.grantReadWriteData(insightsGenerator);
 
     new CfnOutput(this, "TextractQueueUrl", { value: this.textractQueue.queueUrl });
     new CfnOutput(this, "MatchQueueUrl", { value: this.matchQueue.queueUrl });
     new CfnOutput(this, "ReportQueueUrl", { value: this.reportQueue.queueUrl });
+    new CfnOutput(this, "InsightsQueueUrl", { value: this.insightsQueue.queueUrl });
   }
 }

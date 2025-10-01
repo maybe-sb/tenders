@@ -1,7 +1,7 @@
 import type { SQSEvent, SQSRecord } from "aws-lambda";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { z } from "zod";
-import chromium from "@sparticuz/chromium-min";
+import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 
 import { logger } from "@/lib/logger";
@@ -121,12 +121,10 @@ function parseJobPayload(body: string): ReportJob {
 }
 
 async function generatePdf(html: string): Promise<Buffer> {
-  const executablePath = (await chromium.executablePath()) || process.env.CHROME_EXECUTABLE_PATH;
-
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
-    executablePath: executablePath ?? undefined,
+    executablePath: await chromium.executablePath(),
     headless: chromium.headless,
   });
 
@@ -135,6 +133,7 @@ async function generatePdf(html: string): Promise<Buffer> {
     await page.setContent(html, { waitUntil: "networkidle0" });
     const pdf = await page.pdf({
       format: "A4",
+      landscape: true,
       printBackground: true,
       margin: { top: "20mm", bottom: "20mm", left: "16mm", right: "16mm" },
       displayHeaderFooter: false,

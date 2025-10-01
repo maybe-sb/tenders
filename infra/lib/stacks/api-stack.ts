@@ -16,6 +16,7 @@ export interface ApiStackProps extends StackProps {
   matchQueue: Queue;
   reportQueue: Queue;
   textractQueue: Queue;
+  insightsQueue: Queue;
 }
 
 export class ApiStack extends Stack {
@@ -38,6 +39,7 @@ export class ApiStack extends Stack {
         MATCH_QUEUE_URL: props.matchQueue.queueUrl,
         REPORT_QUEUE_URL: props.reportQueue.queueUrl,
         TEXTRACT_QUEUE_URL: props.textractQueue.queueUrl,
+        INSIGHTS_QUEUE_URL: props.insightsQueue.queueUrl,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
         OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-5",
         OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "priority",
@@ -50,6 +52,7 @@ export class ApiStack extends Stack {
     props.matchQueue.grantSendMessages(apiHandler);
     props.reportQueue.grantSendMessages(apiHandler);
     props.textractQueue.grantSendMessages(apiHandler);
+    props.insightsQueue.grantSendMessages(apiHandler);
 
     this.api = new LambdaRestApi(this, "TendersApi", {
       restApiName: `tenders-${props.envName}`,

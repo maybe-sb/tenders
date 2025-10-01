@@ -145,6 +145,42 @@ export interface AssessmentPayload {
   sectionAttachments: Record<string, SectionAttachmentRecord[]>;
 }
 
+export type InsightsStatus = "pending" | "generating" | "ready" | "failed";
+
+export interface Insights {
+  insightsId: string;
+  projectId: string;
+  status: InsightsStatus;
+  insights?: string;
+  model?: string;
+  truncated?: boolean;
+  createdAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+  requestedBy: string;
+}
+
+export interface GenerateInsightsResponse {
+  insightsId: string;
+  status: InsightsStatus;
+  createdAt: string;
+}
+
+export interface GetInsightsResponse {
+  insights?: string;
+  status: InsightsStatus;
+  insightsId: string;
+  createdAt: string;
+  completedAt?: string;
+  model?: string;
+  truncated?: boolean;
+  message?: string;
+}
+
+export interface ListInsightsResponse {
+  insights: Insights[];
+}
+
 export interface AssessmentInsightsResponse {
   insights: string;
   generatedAt: string;
