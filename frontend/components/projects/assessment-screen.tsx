@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, FileDown, Loader2, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, FileDown, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -240,20 +240,6 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
           </CardContent>
         </Card>
       ) : null}
-
-      {downloadUrl && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Latest report</CardTitle>
-            <CardDescription>Your report is ready to download.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-              Download report
-            </a>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
