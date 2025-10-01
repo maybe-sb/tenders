@@ -10,6 +10,7 @@ import { s3Client } from "@/lib/s3";
 import { loadAssessment } from "@/lib/services/assessment";
 import { renderAssessmentSummaryHtml } from "@/lib/reports/render";
 import { updateReportStatus } from "@/lib/repository/reports";
+import { generateAssessmentInsights } from "@/lib/services/assessment-insights";
 
 interface ReportJob {
   type: "ASSESSMENT_SUMMARY";
@@ -73,7 +74,21 @@ async function processRecord(record: SQSRecord): Promise<void> {
       return;
     }
 
-    const html = renderAssessmentSummaryHtml(assessment);
+    let insightsText: string | null = null;
+    try {
+      const { insights } = await generateAssessmentInsights(payload.projectId, assessment);
+      insightsText = insights;
+    } catch (insightsError) {
+      logger.warn("Failed to generate insights for report", {
+        projectId: payload.projectId,
+        reportId: payload.reportId,
+        error: insightsError instanceof Error ? insightsError.message : String(insightsError),
+      });
+    }
+
+    const html = renderAssessmentSummaryHtml(assessment, {
+      insights: insightsText,
+    });
     const pdfBuffer = await generatePdf(html);
 
     await s3Client.send(

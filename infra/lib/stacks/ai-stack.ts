@@ -60,8 +60,8 @@ export class AiStack extends Stack {
         ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
         // IMPORTANT: Set these environment variables in AWS Lambda console or CDK context
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
-        OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-4.1",
-        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "default",
+        OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-5",
+        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER || "priority",
       },
     });
 
@@ -79,6 +79,9 @@ export class AiStack extends Stack {
         UPLOADS_BUCKET: props.uploadsBucket.bucketName,
         ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
         TEXTRACT_QUEUE_URL: this.textractQueue.queueUrl,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+        OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-5",
+        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER ?? "priority",
       },
     });
 
@@ -124,6 +127,9 @@ export class AiStack extends Stack {
       environment: {
         TABLE_NAME: props.table.tableName,
         ARTIFACTS_BUCKET: props.artifactsBucket.bucketName,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+        OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-5",
+        OPENAI_SERVICE_TIER: process.env.OPENAI_SERVICE_TIER ?? "priority",
       },
     });
 
