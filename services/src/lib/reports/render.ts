@@ -111,8 +111,9 @@ export function renderAssessmentSummaryHtml(
             margin-bottom: 48px;
           }
           .cover-logo {
-            height: 42px;
-            width: auto;
+            width: 180px;
+            max-width: 35%;
+            height: auto;
             object-fit: contain;
             display: block;
           }
