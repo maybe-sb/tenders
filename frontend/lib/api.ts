@@ -12,6 +12,9 @@ import {
   TenderProject,
   UploadResponse,
   AssessmentInsightsResponse,
+  GenerateReportResponse,
+  GetReportResponse,
+  ListReportsResponse,
 } from "@/types/tenders";
 
 const ENV_SCHEMA = z.object({
@@ -163,12 +166,11 @@ export const api = {
   generateAssessmentInsights: (projectId: string) =>
     request<AssessmentInsightsResponse>(`/projects/${projectId}/assessment/insights`, "POST"),
   generateReport: (projectId: string) =>
-    request<{ reportKey: string }>(`/projects/${projectId}/reports`, "POST"),
-  getReportDownloadUrl: (projectId: string, reportKey: string) =>
-    request<{ url: string }>(
-      `/projects/${projectId}/reports/${encodeURIComponent(reportKey)}`,
-      "GET"
-    ),
+    request<GenerateReportResponse>(`/projects/${projectId}/reports`, "POST"),
+  getReport: (projectId: string, reportId: string) =>
+    request<GetReportResponse>(`/projects/${projectId}/reports/${reportId}`, "GET"),
+  listReports: (projectId: string) =>
+    request<ListReportsResponse>(`/projects/${projectId}/reports`, "GET"),
 };
 
 export type ApiClient = typeof api;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileDown, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, FileDown, Loader2, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAssessment, useGenerateInsights, useGenerateReport } from "@/hooks/use-assessment";
+import { useAssessment, useGenerateInsights, useGenerateReport, useReports } from "@/hooks/use-assessment";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import type {
@@ -17,6 +17,7 @@ import type {
   AssessmentLineItem,
   SectionAttachmentRecord,
   SectionSummary,
+  Report,
 } from "@/types/tenders";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,48 +30,39 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
   const { data, isLoading } = useAssessment(projectId);
   const generateReport = useGenerateReport(projectId);
   const generateInsights = useGenerateInsights(projectId);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
+  const { data: reportsData } = useReports(projectId);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [insightsVisible, setInsightsVisible] = useState(false);
   const [insightsData, setInsightsData] = useState<AssessmentInsightsResponse | null>(null);
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
+  // Get the latest report
+  const latestReport = reportsData?.reports?.[0] || null;
+
   const handleGenerateReport = async () => {
     try {
-      setDownloadUrl(null);
-      setIsPolling(true);
-      const { reportKey } = await generateReport.mutateAsync();
-      toast("Generating report", {
-        description: "We'll download it automatically once it's ready.",
+      await generateReport.mutateAsync();
+      toast("Generating PDF report", {
+        description: "This may take up to 60 seconds. The download button will appear when ready.",
       });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to start report generation";
+      toast.error(message);
+    }
+  };
 
-      const MAX_ATTEMPTS = 8;
-      const DELAY_MS = 3000;
-      let reportUrl: string | null = null;
-
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        try {
-          const { url } = await api.getReportDownloadUrl(projectId, reportKey);
-          reportUrl = url;
-          break;
-        } catch (error) {
-          if (attempt === MAX_ATTEMPTS - 1) {
-            throw error;
-          }
-          await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
-        }
-      }
-
-      if (reportUrl) {
-        setDownloadUrl(reportUrl);
-        toast.success("Report ready to download");
+  const handleDownloadReport = async (report: Report) => {
+    try {
+      const response = await api.getReport(projectId, report.reportId);
+      if (response.url) {
+        window.open(response.url, "_blank");
+        toast.success("Opening PDF report");
+      } else {
+        toast.error(response.message || "Report not ready yet");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Report is still generating";
+      const message = error instanceof Error ? error.message : "Failed to download report";
       toast.error(message);
-    } finally {
-      setIsPolling(false);
     }
   };
 
@@ -176,17 +168,32 @@ export function AssessmentScreen({ projectId }: AssessmentScreenProps) {
               </>
             )}
           </Button>
-          <Button onClick={handleGenerateReport} disabled={generateReport.isPending || isPolling}>
-            {generateReport.isPending || isPolling ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
-              </>
-            ) : (
-              <>
-                <FileDown className="mr-2 h-4 w-4" /> Generate PDF
-              </>
-            )}
-          </Button>
+          {!latestReport || latestReport.status === "failed" ? (
+            <Button onClick={handleGenerateReport} disabled={generateReport.isPending}>
+              {generateReport.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Starting...
+                </>
+              ) : (
+                <>
+                  <FileDown className="mr-2 h-4 w-4" /> Generate PDF
+                </>
+              )}
+            </Button>
+          ) : latestReport.status === "pending" || latestReport.status === "generating" ? (
+            <Button disabled variant="secondary">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating PDF...
+            </Button>
+          ) : latestReport.status === "ready" ? (
+            <div className="flex gap-2">
+              <Button onClick={() => handleDownloadReport(latestReport)} variant="default">
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Download PDF
+              </Button>
+              <Button onClick={handleGenerateReport} variant="outline" size="sm">
+                Regenerate
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
 

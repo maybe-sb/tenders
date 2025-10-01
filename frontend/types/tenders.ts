@@ -194,3 +194,37 @@ export interface MatchSuggestion {
   confidence: number;
   status: MatchStatus;
 }
+
+export type ReportStatus = "pending" | "generating" | "ready" | "failed";
+export type ReportType = "ASSESSMENT_SUMMARY";
+
+export interface Report {
+  reportId: string;
+  projectId: string;
+  reportKey: string;
+  type: ReportType;
+  status: ReportStatus;
+  createdAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+  requestedBy: string;
+}
+
+export interface GenerateReportResponse {
+  reportId: string;
+  status: ReportStatus;
+  createdAt: string;
+}
+
+export interface GetReportResponse {
+  url?: string;
+  status: ReportStatus;
+  reportId: string;
+  createdAt: string;
+  completedAt?: string;
+  message?: string;
+}
+
+export interface ListReportsResponse {
+  reports: Report[];
+}
